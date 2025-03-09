@@ -1,0 +1,35 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Lambda Layers"
+
+Resources:
+  LayersBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "lambda-layers-${AWS::AccountId}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  FirebaseAdminLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      LayerName: "firebase-admin-layer"
+      Description: "Lambda Layer for firebase_admin library"
+      Content:
+        S3Bucket: !Ref LayersBucket
+        S3Key: firebase_admin.zip
+      CompatibleRuntimes:
+        - python3.9
+        - python3.10
+        - python3.11
+        - python3.12
+        - python3.13
+
+  LambdaLayerPermission:
+    Type: AWS::Lambda::LayerVersionPermission
+    Properties:
+      Action: lambda:GetLayerVersion
+      LayerVersionArn: !Ref FirebaseAdminLayer
+      Principal: "*"
