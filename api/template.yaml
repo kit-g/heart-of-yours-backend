@@ -18,8 +18,10 @@ Parameters:
 Mappings:
   Env:
     dev:
+      AccountDeletionOffset: 1 # days
       LogRetention: 3 # days
     prod:
+      AccountDeletionOffset: 1 # days
       LogRetention: 90 # days
 
 
@@ -40,8 +42,31 @@ Resources:
             Principal:
               Service:
                 - lambda.amazonaws.com
+                - scheduler.amazonaws.com
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: "ApiPolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource:
+                  - !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:heart-*"
+              - Effect: Allow
+                Action:
+                  - events:PutRule
+                  - events:DeleteRule
+                  - events:PutTargets
+                  - events:RemoveTargets
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - iam:PassRole
+                Resource:
+                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/heart-*"
 
   AccountsResource:
     Type: AWS::ApiGateway::Resource
@@ -57,11 +82,27 @@ Resources:
       PathPart: "{accountId}"
       RestApiId: !Ref Api
 
+  ScheduleGroup:
+    Type: AWS::Scheduler::ScheduleGroup
+    Properties:
+      Name: "account-deletions"
+
   AuthorizerFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: ./authorizer
+      Description: "Part of Heart API: authorizer"
       FunctionName: "heart-authorizer"
+      Layers:
+        - arn:aws:lambda:ca-central-1:583168578067:layer:firebase-admin-layer:1
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  BackgroundFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./background
+      Description: "Part of Heart API: background handler"
+      FunctionName: "heart-background"
       Layers:
         - arn:aws:lambda:ca-central-1:583168578067:layer:firebase-admin-layer:1
       Role: !GetAtt LambdaExecutionRole.Arn
@@ -70,6 +111,13 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: ./api
+      Description: "Part of Heart API: API handler"
+      Environment:
+        Variables:
+          ACCOUNT_DELETION_OFFSET: !FindInMap [ Env, !Ref Env, AccountDeletionOffset ]
+          BACKGROUND_FUNCTION: !GetAtt BackgroundFunction.Arn
+          BACKGROUND_ROLE: !GetAtt LambdaExecutionRole.Arn
+          SCHEDULE_GROUP: !GetAtt ScheduleGroup.Arn
       FunctionName: "heart-api"
       Layers:
         - arn:aws:lambda:ca-central-1:583168578067:layer:firebase-admin-layer:1
