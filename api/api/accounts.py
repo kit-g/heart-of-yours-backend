@@ -9,9 +9,7 @@ from models import User
 from errors import EmptyResponse, Forbidden
 
 import firebase_admin
-from firebase_admin import credentials
-
-from firebase_admin import firestore
+from firebase_admin import credentials, firestore
 
 cred = credentials.Certificate('firebase.json')
 firebase_admin.initialize_app(cred)
@@ -25,7 +23,7 @@ background_role = os.environ['BACKGROUND_ROLE']
 schedule_group = os.environ['SCHEDULE_GROUP']
 
 
-def delete_account(*, user: User, account_id: str, password) -> None:
+def delete_account(*, user: User, account_id: str) -> None:
     if user.id != account_id:
         raise Forbidden
 
