@@ -21,9 +21,9 @@ def router(event: dict) -> dict:
     """
     match event:
         case {
-            'path': '/accounts',
+            'path': path,
             'requestContext': {'operationName': operation},
-        }:
+        } if path.startswith('/accounts'):
             function_name = dash_to_snake(operation)
             return getattr(accounts, function_name)(**request(event))
         case {'path': path}:
