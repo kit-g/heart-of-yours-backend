@@ -1,4 +1,4 @@
-from errors import EmptyResponse, Unauthorized, NotFound
+from errors import EmptyResponse, Unauthorized, NotFound, Forbidden
 from framework import response, request, argument_error
 from utils import custom_serializer, dash_to_snake
 
@@ -43,6 +43,11 @@ def handler(event: dict, _):
         return response(status=204)
     except TypeError as e:
         return argument_error(e)
+    except Forbidden as e:
+        return response(
+            status=403,
+            body={'error': f'{e.__class__.__name__}'},
+        )
     except Unauthorized as e:
         return response(
             status=401,

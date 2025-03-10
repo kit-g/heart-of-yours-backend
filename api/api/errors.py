@@ -9,6 +9,10 @@ class Unauthorized(Exception):
     pass
 
 
+class Forbidden(Exception):
+    pass
+
+
 @dataclass
 class NotFound(Exception):
     path: str

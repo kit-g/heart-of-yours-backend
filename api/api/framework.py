@@ -1,6 +1,7 @@
 import json
 import re
 
+from models import User
 from utils import camel_to_snake
 from errors import Unauthorized
 
@@ -42,11 +43,11 @@ def request(event: dict) -> dict | None:
             'requestContext': context,
         }:
             body = json.loads(body) if body else {}
-            # user_id = user_of(context)
+            user = user_of(context)
             return {
                 camel_to_snake(k): v
                 for k, v in {
-                    # **{'user_id': user_id},
+                    **{'user': user},
                     **(path or {}),
                     **(query_params or {}),
                     **body,
@@ -54,11 +55,11 @@ def request(event: dict) -> dict | None:
             }
 
 
-def user_of(context: dict) -> str:
+def user_of(context: dict) -> User:
     try:
         match context:
             case {'authorizer': {'user': raw}}:
-                return json.loads(raw)['id']
+                return User(**json.loads(raw))
             case _:
                 raise Unauthorized
     except:
