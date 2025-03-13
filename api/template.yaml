@@ -7,6 +7,7 @@ Globals:
   Function:
     Runtime: python3.13
     Handler: app.handler
+    Timeout: 5
 
 Parameters:
   Env:
@@ -30,6 +31,12 @@ Resources:
     Type: AWS::ApiGateway::RestApi
     Properties:
       Name: "heart-api"
+      Description: "Heart of yours API"
+
+  ScheduleGroup:
+    Type: AWS::Scheduler::ScheduleGroup
+    Properties:
+      Name: "account-deletions"
 
   LambdaExecutionRole:
     Type: AWS::IAM::Role
@@ -57,11 +64,11 @@ Resources:
                   - !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:heart-*"
               - Effect: Allow
                 Action:
-                  - events:PutRule
-                  - events:DeleteRule
-                  - events:PutTargets
-                  - events:RemoveTargets
-                Resource: "*"
+                  - scheduler:CreateSchedule
+                  - scheduler:DeleteSchedule
+                Resource:
+                  - !Sub "arn:aws:scheduler:${AWS::Region}:${AWS::AccountId}:schedule/${ScheduleGroup}"
+                  - !Sub "arn:aws:scheduler:${AWS::Region}:${AWS::AccountId}:schedule/${ScheduleGroup}/*"
               - Effect: Allow
                 Action:
                   - iam:PassRole
@@ -82,11 +89,6 @@ Resources:
       PathPart: "{accountId}"
       RestApiId: !Ref Api
 
-  ScheduleGroup:
-    Type: AWS::Scheduler::ScheduleGroup
-    Properties:
-      Name: "account-deletions"
-
   AuthorizerFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -94,7 +96,8 @@ Resources:
       Description: "Part of Heart API: authorizer"
       FunctionName: "heart-authorizer"
       Layers:
-        - arn:aws:lambda:ca-central-1:583168578067:layer:firebase-admin-layer:1
+        - arn:aws:lambda:ca-central-1:583168578067:layer:firebase-admin:3
+        - arn:aws:lambda:ca-central-1:583168578067:layer:firestore:1
       Role: !GetAtt LambdaExecutionRole.Arn
 
   BackgroundFunction:
@@ -104,7 +107,8 @@ Resources:
       Description: "Part of Heart API: background handler"
       FunctionName: "heart-background"
       Layers:
-        - arn:aws:lambda:ca-central-1:583168578067:layer:firebase-admin-layer:1
+        - arn:aws:lambda:ca-central-1:583168578067:layer:firebase-admin:3
+        - arn:aws:lambda:ca-central-1:583168578067:layer:firestore:1
       Role: !GetAtt LambdaExecutionRole.Arn
 
   ApiFunction:
@@ -117,10 +121,11 @@ Resources:
           ACCOUNT_DELETION_OFFSET: !FindInMap [ Env, !Ref Env, AccountDeletionOffset ]
           BACKGROUND_FUNCTION: !GetAtt BackgroundFunction.Arn
           BACKGROUND_ROLE: !GetAtt LambdaExecutionRole.Arn
-          SCHEDULE_GROUP: !GetAtt ScheduleGroup.Arn
+          SCHEDULE_GROUP: !Ref ScheduleGroup
       FunctionName: "heart-api"
       Layers:
-        - arn:aws:lambda:ca-central-1:583168578067:layer:firebase-admin-layer:1
+        - arn:aws:lambda:ca-central-1:583168578067:layer:firebase-admin:3
+#        - arn:aws:lambda:ca-central-1:583168578067:layer:firestore:1
       Role: !GetAtt LambdaExecutionRole.Arn
 
   ApiFunctionLogGroup:
@@ -184,10 +189,29 @@ Resources:
             - Region: !Ref "AWS::Region"
               LambdaArn: !GetAtt ApiFunction.Arn
 
+  EditAccountMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizerId: !Ref Authorizer
+      AuthorizationType: CUSTOM
+      HttpMethod: PUT
+      ResourceId: !Ref AccountsDetailResource
+      RestApiId: !Ref Api
+      OperationName: "edit-account"
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri:
+          Fn::Sub:
+            - "arn:aws:apigateway:${Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations"
+            - Region: !Ref "AWS::Region"
+              LambdaArn: !GetAtt ApiFunction.Arn
+
   Deployment:
     Type: AWS::ApiGateway::Deployment
     DependsOn:
       - DeleteAccountMethod
+      - EditAccountMethod
     Properties:
       RestApiId: !Ref Api
 

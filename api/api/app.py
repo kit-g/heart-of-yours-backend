@@ -16,7 +16,8 @@ def router(event: dict) -> dict:
 
     >>> getattr(accounts, function_name)(**request(event))
 
-    :param event:
+    :param event: API Gateway proxy event, as per
+        https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-lambda-proxy-integrations.html
     :return:
     """
     match event:
