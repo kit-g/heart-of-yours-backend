@@ -1,0 +1,7 @@
+firebase_admin==6.6.0
+boto3~=1.37.9
+botocore~=1.37.9
+firebase-admin~=6.6.0
+protobuf~=5.29.2
+pillow~=11.1.0
+grpcio~=1.68.1

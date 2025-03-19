@@ -1,5 +1,4 @@
 import os
-from typing import Callable, Any
 from urllib.parse import quote_plus
 
 import boto3
@@ -8,6 +7,8 @@ from PIL import Image
 import io
 
 from firebase_admin import credentials, initialize_app, firestore
+
+from common import logs
 
 _bucket = "583168578067-exercise-assets"
 _assets = "assets"
@@ -19,24 +20,6 @@ initialize_app(cred)
 db = firestore.client()
 
 distribution = os.environ['DISTRIBUTION']
-
-
-def logs(func: Callable) -> Any:
-    """
-    Decorator to wrap a function in try-except for error handling and logging exceptions.
-
-    :param func: The target function to decorate.
-    :return: A wrapped function that handles exceptions and logs errors.
-    """
-
-    def wrapper(*args, **kwargs):
-        try:
-            return func(*args, **kwargs)
-        except Exception as e:
-            print(f"Error in {func.__name__}: {type(e)} - {e}, args: {args}, kwargs {kwargs}")
-            return None
-
-    return wrapper
 
 
 def link(exercise: str, file: str) -> str:
