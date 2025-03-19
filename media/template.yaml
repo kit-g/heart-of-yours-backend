@@ -1,0 +1,94 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "App's general infrastructure"
+
+Resources:
+  ExerciseBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${AWS::AccountId}-exercise-assets"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  ExerciseBucketOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Description: "OAC for exercise assets"
+        Name: "exercise-oac"
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  MediaDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: "Heart of yours, media assets"
+        CacheBehaviors:
+          -
+            PathPattern: "/exercises/*"
+            TargetOriginId: ExerciseBucketOrigin
+            ViewerProtocolPolicy: https-only
+            CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6  # CachingOptimized
+            AllowedMethods:
+              - GET
+              - HEAD
+            CachedMethods:
+              - GET
+              - HEAD
+            ForwardedValues:
+              QueryString: false
+        DefaultCacheBehavior:
+          TargetOriginId: ExerciseBucketOrigin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+            - GET
+            - HEAD
+          CachedMethods:
+            - GET
+            - HEAD
+          ForwardedValues:
+            QueryString: false
+        Origins:
+          - DomainName: !GetAtt ExerciseBucket.RegionalDomainName
+            Id: ExerciseBucketOrigin
+            OriginPath: ""
+            S3OriginConfig:
+              # empty, as per
+              # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-cloudfront-distribution-s3originconfig.html#cfn-cloudfront-distribution-s3originconfig-originaccessidentity
+              OriginAccessIdentity: ""
+            OriginAccessControlId: !Ref ExerciseBucketOriginAccessControl
+
+  ExerciseBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ExerciseBucket
+      PolicyDocument:
+        Statement:
+          - Sid: AllowCloudFrontServicePrincipal
+            Effect: Allow
+            Action: "s3:GetObject"
+            Resource: !Sub "${ExerciseBucket.Arn}/*"
+            Principal:
+              Service: "cloudfront.amazonaws.com"
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${MediaDistribution}"
+
+
+Outputs:
+  ExerciseBucketName:
+    Description: "Media assets for exercises"
+    Value: !Ref ExerciseBucket
+    Export:
+      Name: "ExerciseBucket"
+
+  MediaDistributionDomainName:
+    Description: "CloudFront distribution domain name"
+    Value: !GetAtt MediaDistribution.DomainName
+    Export:
+      Name: "MediaDistributionDomain"
