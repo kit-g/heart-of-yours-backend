@@ -6,24 +6,24 @@ import mimetypes
 from PIL import Image
 import io
 
-from firebase_admin import credentials, initialize_app, firestore
+from common import logs, db
 
-from common import logs
-
-_bucket = "583168578067-exercise-assets"
 _assets = "assets"
 
 _s3 = boto3.client("s3")
 
-cred = credentials.Certificate('../api/background/firebase.json')
-initialize_app(cred)
-db = firestore.client()
-
 distribution = os.environ['DISTRIBUTION']
+_bucket = os.environ['BUCKET']
 
 
 def link(exercise: str, file: str) -> str:
     return f'https://{distribution}/exercises/{quote_plus(exercise)}/{file}'
+
+
+@logs
+def dimensions(file_path: str) -> tuple[int, int]:
+    with Image.open(file_path) as img:
+        return img.size
 
 
 @logs
@@ -60,11 +60,7 @@ def extract_thumbnail(file_path: str, thumbnail_size=(200, 200)):
 
 
 @logs
-def update(exercise: str):
-    doc = {
-        'thumbnail': link(exercise, 'thumbnail.jpg'),
-        'asset': link(exercise, 'asset.gif'),
-    }
+def update(exercise: str, doc: dict):
     return db.collection('exercises').document(exercise).update(doc)
 
 
@@ -77,21 +73,31 @@ def upload_files():
 
         content_type, _ = mimetypes.guess_type(file_path)
 
-        if content_type != 'image/gif':
-            print(f"Skipping {file_name} - not a GIF file")
+        if not content_type or not content_type.startswith('image/'):
+            print(f"Skipping {file_name} - not an image file")
             continue
 
-        exercise = os.path.splitext(file_name)[0]
+        exercise, extension = os.path.splitext(file_name)
 
         asset_path = f"{exercise}/asset.gif"
         thumbnail_path = f"{exercise}/thumbnail.jpg"
 
+        width, height = dimensions(file_path)
+
         upload(
             file_path=file_path,
             file_name=asset_path,
-            content_type='image/gif',
+            content_type=content_type,
         )
         print(f"Uploaded {file_name} to {asset_path}")
+
+        doc = {
+            'asset': {
+                'link': link(exercise, 'asset.gif'),
+                'width': width,
+                'height': height,
+            },
+        }
 
         if thumbnail := extract_thumbnail(file_path):
             temp = os.path.join(_assets, f"temp_thumbnail_{exercise}.jpg")
@@ -105,9 +111,16 @@ def upload_files():
             )
             print(f"Uploaded thumbnail to {thumbnail_path}")
 
+            t_width, t_height = dimensions(temp)
+
+            doc['thumbnail'] = {
+                'link': link(exercise, 'thumbnail.jpg'),
+                'width': t_width,
+                'height': t_height,
+            }
             os.remove(temp)
 
-        update(exercise)
+        update(exercise, doc)
 
 
 if __name__ == "__main__":

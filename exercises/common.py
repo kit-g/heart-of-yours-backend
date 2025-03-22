@@ -17,7 +17,7 @@ templates = db.collection('templates')
 
 def get_raw(filepath: str) -> Generator[dict, None, None]:
     with open(filepath) as csvfile:
-        reader = csv.DictReader(csvfile, delimiter=';')
+        reader = csv.DictReader(csvfile, delimiter=',')
         for row in reader:
             yield row
 
