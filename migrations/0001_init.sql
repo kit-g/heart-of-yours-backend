@@ -78,8 +78,6 @@ CREATE TABLE IF NOT EXISTS exercise_details
 (
     exercise_name TEXT NOT NULL REFERENCES exercises ON DELETE CASCADE,
     user_id       TEXT NOT NULL,
-    last_done     TEXT,
-    last_results  TEXT,
     rest_timer    INTEGER,
     PRIMARY KEY (exercise_name, user_id)
 );
