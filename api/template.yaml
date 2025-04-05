@@ -21,6 +21,8 @@ Mappings:
     dev:
       AccountDeletionOffset: 1 # days
       LogRetention: 3 # days
+      UploadBucket: "583168578067-upload"
+      MediaBucket: "583168578067-user-media"
     prod:
       AccountDeletionOffset: 1 # days
       LogRetention: 90 # days
@@ -74,6 +76,18 @@ Resources:
                   - iam:PassRole
                 Resource:
                   - !Sub "arn:aws:iam::${AWS::AccountId}:role/heart-*"
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:PutObjectTagging
+                Resource:
+                  - !Sub
+                    - "arn:aws:s3:::${Bucket}/*"
+                    - Bucket: !FindInMap [ Env, !Ref Env, UploadBucket ]
+                  - !Sub
+                    - "arn:aws:s3:::${Bucket}/*"
+                    - Bucket: !FindInMap [ Env, !Ref Env, MediaBucket ]
 
   AccountsResource:
     Type: AWS::ApiGateway::Resource
@@ -96,20 +110,18 @@ Resources:
       Description: "Part of Heart API: authorizer"
       FunctionName: "heart-authorizer"
       Layers:
-        - arn:aws:lambda:ca-central-1:583168578067:layer:firebase-admin:3
-        - arn:aws:lambda:ca-central-1:583168578067:layer:firestore:1
+        - arn:aws:lambda:ca-central-1:583168578067:layer:firebase:2
       Role: !GetAtt LambdaExecutionRole.Arn
 
-  BackgroundFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: ./background
-      Description: "Part of Heart API: background handler"
-      FunctionName: "heart-background"
-      Layers:
-        - arn:aws:lambda:ca-central-1:583168578067:layer:firebase-admin:3
-        - arn:aws:lambda:ca-central-1:583168578067:layer:firestore:1
-      Role: !GetAtt LambdaExecutionRole.Arn
+#  BackgroundFunction:
+#    Type: AWS::Serverless::Function
+#    Properties:
+#      CodeUri: ./background
+#      Description: "Part of Heart API: background handler"
+#      FunctionName: "heart-background"
+#      Layers:
+#        - arn:aws:lambda:ca-central-1:583168578067:layer:firebase:2
+#      Role: !GetAtt LambdaExecutionRole.Arn
 
   ApiFunction:
     Type: AWS::Serverless::Function
@@ -119,13 +131,14 @@ Resources:
       Environment:
         Variables:
           ACCOUNT_DELETION_OFFSET: !FindInMap [ Env, !Ref Env, AccountDeletionOffset ]
-          BACKGROUND_FUNCTION: !GetAtt BackgroundFunction.Arn
+#          BACKGROUND_FUNCTION: !GetAtt BackgroundFunction.Arn
           BACKGROUND_ROLE: !GetAtt LambdaExecutionRole.Arn
           SCHEDULE_GROUP: !Ref ScheduleGroup
+          MEDIA_BUCKET: !FindInMap [ Env, !Ref Env, MediaBucket ]
+          UPLOAD_BUCKET: !FindInMap [ Env, !Ref Env, UploadBucket ]
       FunctionName: "heart-api"
       Layers:
-        - arn:aws:lambda:ca-central-1:583168578067:layer:firebase-admin:3
-#        - arn:aws:lambda:ca-central-1:583168578067:layer:firestore:1
+        - arn:aws:lambda:ca-central-1:583168578067:layer:firebase:2
       Role: !GetAtt LambdaExecutionRole.Arn
 
   ApiFunctionLogGroup:
@@ -207,11 +220,29 @@ Resources:
             - Region: !Ref "AWS::Region"
               LambdaArn: !GetAtt ApiFunction.Arn
 
+  AccountInfoMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizerId: !Ref Authorizer
+      AuthorizationType: CUSTOM
+      HttpMethod: GET
+      ResourceId: !Ref AccountsDetailResource
+      RestApiId: !Ref Api
+      OperationName: "account-info"
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri:
+          Fn::Sub:
+            - "arn:aws:apigateway:${Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations"
+            - Region: !Ref "AWS::Region"
+              LambdaArn: !GetAtt ApiFunction.Arn
+
   Deployment:
     Type: AWS::ApiGateway::Deployment
     DependsOn:
-      - DeleteAccountMethod
       - EditAccountMethod
+      - DeleteAccountMethod
     Properties:
       RestApiId: !Ref Api
 

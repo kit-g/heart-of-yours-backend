@@ -47,7 +47,7 @@ def handler(event: dict, _):
     except Forbidden as e:
         return response(
             status=403,
-            body={'error': f'{e.__class__.__name__}'},
+            body={'error': f'{e.message or e.__class__.__name__}'},
         )
     except Unauthorized as e:
         return response(
@@ -60,6 +60,7 @@ def handler(event: dict, _):
             body={'error': f'{e.path} not found'},
         )
     except Exception as e:
+        # todo monitor
         return response(
             status=500,
             body={'error': str(e)},

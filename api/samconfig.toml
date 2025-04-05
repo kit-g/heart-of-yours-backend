@@ -3,7 +3,7 @@ version = 0.1
 [dev.deploy]
 [dev.deploy.parameters]
 stack_name = "heart-api"
-s3_bucket = "aws-sam-583168578067"
+s3_bucket = "583168578067-sam"
 s3_prefix = "heart-api"
 region = "ca-central-1"
 profile = "personal"

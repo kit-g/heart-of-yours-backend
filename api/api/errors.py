@@ -9,10 +9,16 @@ class Unauthorized(Exception):
     pass
 
 
+@dataclass
 class Forbidden(Exception):
-    pass
+    message: str = None
 
 
 @dataclass
 class NotFound(Exception):
     path: str
+
+
+@dataclass
+class ProgrammingError(Exception):
+    message: str
