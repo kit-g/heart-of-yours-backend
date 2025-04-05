@@ -1,6 +1,6 @@
 # Lambda layer compile script for a single Python package
 
-BUCKET="lambda-layers-583168578067"
+BUCKET="583168578067-lambda-layers"
 PACKAGE="$1"
 TARGET="python"
 rm -r "$TARGET"
