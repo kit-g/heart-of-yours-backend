@@ -100,7 +100,6 @@ Resources:
             TargetOriginId: UserMediaBucketOrigin
             ViewerProtocolPolicy: https-only
             CachePolicyId: !Ref MediaCachePolicy
-            #            CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6  # CachingOptimized
             AllowedMethods:
               - GET
               - HEAD
@@ -109,6 +108,16 @@ Resources:
               - HEAD
             ForwardedValues:
               QueryString: false
+          - PathPattern: "/favicon.ico"
+            TargetOriginId: Favicon
+            ViewerProtocolPolicy: https-only
+            CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6  # CachingOptimized
+            AllowedMethods:
+              - GET
+              - HEAD
+            CachedMethods:
+              - GET
+              - HEAD
         DefaultCacheBehavior:
           TargetOriginId: ExerciseBucketOrigin
           ViewerProtocolPolicy: redirect-to-https
@@ -131,6 +140,12 @@ Resources:
             OriginAccessControlId: !Ref BucketOriginAccessControl
           - DomainName: !GetAtt UserMediaBucket.RegionalDomainName
             Id: UserMediaBucketOrigin
+            OriginPath: ""
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+            OriginAccessControlId: !Ref BucketOriginAccessControl
+          - DomainName: !GetAtt UserMediaBucket.RegionalDomainName
+            Id: Favicon
             OriginPath: ""
             S3OriginConfig:
               OriginAccessIdentity: ""
