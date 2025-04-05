@@ -1,4 +1,5 @@
 import json
+import os
 from dataclasses import dataclass, asdict
 from typing import Literal
 
@@ -9,6 +10,7 @@ cred = credentials.Certificate("firebase.json")
 firebase_admin.initialize_app(cred)
 
 Effect = Literal['Allow', 'Deny']
+region = os.environ['AWS_REGION']
 
 
 @dataclass
@@ -58,9 +60,15 @@ def handler(event, _):
 
     match event:
         case {
-            'methodArn': resource,
             'headers': {'Authorization': header},
+            'requestContext': {
+                'stage': stage,
+                'accountId': account,
+                'apiId': api_id,
+            },
         }:
+            resource = f"arn:aws:execute-api:{region}:{account}:{api_id}/{stage}/*"
+
             match header.split(' '):
                 case ['Bearer', token]:
                     try:
