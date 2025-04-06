@@ -51,7 +51,7 @@ Resources:
     Type: AWS::CloudFront::OriginAccessControl
     Properties:
       OriginAccessControlConfig:
-        Description: "OAC for exercise assets"
+        Description: "OAC for various assets"
         Name: "bucket-oac"
         OriginAccessControlOriginType: s3
         SigningBehavior: always
@@ -109,7 +109,7 @@ Resources:
             ForwardedValues:
               QueryString: false
           - PathPattern: "/favicon.ico"
-            TargetOriginId: Favicon
+            TargetOriginId: UserMediaBucketOrigin
             ViewerProtocolPolicy: https-only
             CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6  # CachingOptimized
             AllowedMethods:
@@ -140,12 +140,6 @@ Resources:
             OriginAccessControlId: !Ref BucketOriginAccessControl
           - DomainName: !GetAtt UserMediaBucket.RegionalDomainName
             Id: UserMediaBucketOrigin
-            OriginPath: ""
-            S3OriginConfig:
-              OriginAccessIdentity: ""
-            OriginAccessControlId: !Ref BucketOriginAccessControl
-          - DomainName: !GetAtt UserMediaBucket.RegionalDomainName
-            Id: Favicon
             OriginPath: ""
             S3OriginConfig:
               OriginAccessIdentity: ""
