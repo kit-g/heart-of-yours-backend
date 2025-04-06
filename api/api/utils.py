@@ -1,14 +1,11 @@
 import re
 from datetime import datetime
 from decimal import Decimal
-from functools import wraps
-from typing import Callable
 
 import boto3
 from botocore.exceptions import ClientError
 
-from models import User
-from errors import Forbidden, ProgrammingError
+from errors import ProgrammingError
 
 camel_pattern = re.compile(r'(?<!^)(?=[A-Z])')
 
@@ -74,19 +71,5 @@ def get_presigned_upload_link(
         raise ProgrammingError(f'{e}')
 
 
-def only_self(func: Callable) -> Callable:
-    """
-    handler decorator that raises Forbidden
-    if a user is trying to perform an action on an account
-    other than itself
-
-    :param func: endpoint handler
-    """
-    @wraps(func)
-    def wrapper(*, user: User, account_id: str, **kwargs):
-        match user:
-            case User(id=user_id) if user_id == account_id:
-                return func(user=user, account_id=account_id, **kwargs)
-        raise Forbidden
-
-    return wrapper
+def delete_from_bucket(bucket: str, key: str) -> dict:
+    return s3.delete_object(Bucket=bucket, Key=key)

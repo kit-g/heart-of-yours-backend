@@ -8,7 +8,7 @@ from firebase_admin import credentials
 
 from errors import Forbidden
 from models import User
-from utils import only_self, get_presigned_upload_link
+from utils import get_presigned_upload_link, delete_from_bucket
 
 cred = credentials.Certificate('firebase.json')
 firebase_admin.initialize_app(cred)
@@ -27,7 +27,6 @@ min_content_length: int = 128
 max_content_length: int = 31_457_280  # 30 MB max
 
 
-@only_self
 def delete_account(*, user: User, account_id: str) -> None:
     """
     Deletes a user account by scheduling it for deletion. Ensures that the account
@@ -83,11 +82,12 @@ def delete_account(*, user: User, account_id: str) -> None:
     #         raise EmptyResponse
 
 
-@only_self
-def edit_account(*, user: User, account_id: str, action: str, _: dict = None) -> None:  # noqa
+def edit_account(*, user: User, account_id: str, action: str, _: dict = None) -> dict | None:  # noqa
     match action:
         case 'undoAccountDeletion':
             return _undo_account_deletion(user.id)
+        case 'removeAvatar':
+            return _remove_avatar(account_id)
 
 
 def _undo_account_deletion(user_id: str) -> None:
@@ -120,7 +120,10 @@ def _undo_account_deletion(user_id: str) -> None:
                             raise error
 
 
-@only_self
+def _remove_avatar(account_id: str) -> dict:
+    return delete_from_bucket(bucket=media_bucket, key=f'avatars/{account_id}')
+
+
 def account_info(*, user: User, account_id: str, action: str, mime_type: str = None) -> dict | None:  # noqa
     match action:
         case 'uploadAvatar':

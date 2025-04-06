@@ -35,7 +35,7 @@ class User:
 
 def generate_policy(effect: Effect, resource: str, user: User = None) -> dict:
     policy = {
-        "principalId": user.id or 'user',
+        "principalId": user.id if user else 'user',
         "policyDocument": {
             "Version": "2012-10-17",
             "Statement": [
@@ -43,7 +43,7 @@ def generate_policy(effect: Effect, resource: str, user: User = None) -> dict:
                     "Action": "execute-api:Invoke",
                     "Effect": effect,
                     "Resource": resource
-                }
+                },
             ]
         },
     }
@@ -66,6 +66,7 @@ def handler(event, _):
                 'accountId': account,
                 'apiId': api_id,
             },
+            'pathParameters': path_params,
         }:
             resource = f"arn:aws:execute-api:{region}:{account}:{api_id}/{stage}/*"
 
@@ -74,8 +75,17 @@ def handler(event, _):
                     try:
                         decoded = auth.verify_id_token(token)
                         user = User.from_dict(decoded)
-                        return generate_policy("Allow", resource, user=user)
 
+                        match path_params:
+                            # this will be the general convention:
+                            # if the path contains {accountId},
+                            # the endpoint will only allow the action to that user
+                            case {'accountId': account_id}:
+                                if account_id == user.id:
+                                    return generate_policy("Allow", resource, user=user)
+                                return generate_policy("Deny", resource)
+                            case _:
+                                return generate_policy("Allow", resource, user=user)
                     except Exception as e:
                         print(f"Token verification failed: {e}")
                         return generate_policy("Deny", resource)
