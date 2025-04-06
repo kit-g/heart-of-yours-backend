@@ -88,6 +88,13 @@ Resources:
                   - !Sub
                     - "arn:aws:s3:::${Bucket}/*"
                     - Bucket: !FindInMap [ Env, !Ref Env, MediaBucket ]
+              - Effect: Allow
+                Action:
+                  - s3:DeleteObject
+                Resource:
+                  - !Sub
+                    - "arn:aws:s3:::${Bucket}/avatars/*"
+                    - Bucket: !FindInMap [ Env, !Ref Env, MediaBucket ]
 
   AccountsResource:
     Type: AWS::ApiGateway::Resource
