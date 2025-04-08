@@ -33,7 +33,7 @@ def leave_feedback(*, user: User, message: str) -> dict:
             {'Content-Type': mime_type},
         ]
     )
-    screenshot_url = f'{link["url"]}/{key}'
+    screenshot_url = f'{link["url"]}{key}'
     body = {
         'user_id': user.id,
         'email': user.email,
