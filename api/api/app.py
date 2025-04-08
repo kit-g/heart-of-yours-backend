@@ -3,6 +3,7 @@ from framework import response, request, argument_error
 from utils import custom_serializer, dash_to_snake
 
 import accounts
+import feedback
 
 
 def router(event: dict) -> dict:
@@ -27,6 +28,12 @@ def router(event: dict) -> dict:
         } if path.startswith('/accounts'):
             function_name = dash_to_snake(operation)
             return getattr(accounts, function_name)(**request(event))
+        case {
+            'path': path,
+            'requestContext': {'operationName': operation},
+        } if path.startswith('/feedback'):
+            function_name = dash_to_snake(operation)
+            return getattr(feedback, function_name)(**request(event))
         case {'path': path}:
             raise NotFound(path)
     raise ValueError(event)

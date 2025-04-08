@@ -1,6 +1,9 @@
+import json
+import os
 import re
 from datetime import datetime
 from decimal import Decimal
+from typing import Any
 
 import boto3
 from botocore.exceptions import ClientError
@@ -10,6 +13,9 @@ from errors import ProgrammingError
 camel_pattern = re.compile(r'(?<!^)(?=[A-Z])')
 
 s3 = boto3.client('s3')
+sns = boto3.client('sns')
+
+monitoring_topic = os.environ['MONITORING_TOPIC']
 
 
 def camel_to_snake(s: str) -> str:
@@ -73,3 +79,15 @@ def get_presigned_upload_link(
 
 def delete_from_bucket(bucket: str, key: str) -> dict:
     return s3.delete_object(Bucket=bucket, Key=key)
+
+
+def send_notification(topic: str, message: Any) -> dict:
+    return sns.publish(
+        TargetArn=topic,
+        Message=json.dumps({'default': json.dumps(message)}),
+        MessageStructure='json',
+    )
+
+
+def send_monitoring_notification(message: Any) -> dict:
+    return send_notification(monitoring_topic, message)

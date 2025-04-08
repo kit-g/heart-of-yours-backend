@@ -40,6 +40,11 @@ Resources:
     Properties:
       Name: "account-deletions"
 
+  MonitoringTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: "monitoring-notifications"
+
   LambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -95,12 +100,23 @@ Resources:
                   - !Sub
                     - "arn:aws:s3:::${Bucket}/avatars/*"
                     - Bucket: !FindInMap [ Env, !Ref Env, MediaBucket ]
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource: !Ref MonitoringTopic
 
   AccountsResource:
     Type: AWS::ApiGateway::Resource
     Properties:
       ParentId: !GetAtt Api.RootResourceId
       PathPart: "accounts"
+      RestApiId: !Ref Api
+
+  FeedbackResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId: !GetAtt Api.RootResourceId
+      PathPart: "feedback"
       RestApiId: !Ref Api
 
   AccountsDetailResource:
@@ -142,6 +158,7 @@ Resources:
           BACKGROUND_ROLE: !GetAtt LambdaExecutionRole.Arn
           SCHEDULE_GROUP: !Ref ScheduleGroup
           MEDIA_BUCKET: !FindInMap [ Env, !Ref Env, MediaBucket ]
+          MONITORING_TOPIC: !Ref MonitoringTopic
           UPLOAD_BUCKET: !FindInMap [ Env, !Ref Env, UploadBucket ]
       FunctionName: "heart-api"
       Layers:
@@ -218,6 +235,24 @@ Resources:
       ResourceId: !Ref AccountsDetailResource
       RestApiId: !Ref Api
       OperationName: "edit-account"
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri:
+          Fn::Sub:
+            - "arn:aws:apigateway:${Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations"
+            - Region: !Ref "AWS::Region"
+              LambdaArn: !GetAtt ApiFunction.Arn
+
+  LeaveFeedbackMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizerId: !Ref Authorizer
+      AuthorizationType: CUSTOM
+      HttpMethod: POST
+      ResourceId: !Ref FeedbackResource
+      RestApiId: !Ref Api
+      OperationName: "leave-feedback"
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
