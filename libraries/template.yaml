@@ -30,7 +30,28 @@ Resources:
       LayerVersionArn: !Ref FirebaseAdminLayer
       Principal: "*"
 
+  DynamoUtilsLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      LayerName: "dynamo-utils"
+      Description: "Lambda Layer for dynamo-utils library"
+      Content:
+        S3Bucket: !Ref LayersBucket
+        S3Key: dynamo-0-4-7.zip
+      CompatibleRuntimes:
+        - python3.13
+
+  DynamoUtilsLayerPermission:
+    Type: AWS::Lambda::LayerVersionPermission
+    Properties:
+      Action: lambda:GetLayerVersion
+      LayerVersionArn: !Ref FirebaseAdminLayer
+      Principal: "*"
+
 Outputs:
-  FirebaseAdminLayerOutput:
+  FirebaseAdminLayer:
     Description: "Firebase Admin Lambda Layer"
     Value: !Ref FirebaseAdminLayer
+  DynamoUtilsLayer:
+    Description: "Dynamo-utils Lambda Layer"
+    Value: !Ref DynamoUtilsLayer

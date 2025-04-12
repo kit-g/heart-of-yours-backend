@@ -124,6 +124,94 @@ Resources:
             items:
               "$ref": !Sub "https://apigateway.amazonaws.com/restapis/${Api}/models/Exercise"
 
+  Set:
+    Type: AWS::ApiGateway::Model
+    Properties:
+      RestApiId: !Ref Api
+      ContentType: application/json
+      Name: "Set"
+      Schema:
+        $schema: "http://json-schema.org/draft-04/schema#"
+        title: "Set"
+        type: "object"
+        required:
+          - id
+          - completed
+          - weight
+          - reps
+          - duration
+          - distance
+        properties:
+          id:
+            type: string
+          completed:
+            type: boolean
+            minimum: 0
+          weight:
+            type: number
+            minimum: 0
+          reps:
+            type: number
+            minimum: 0
+          duration:
+            type: number
+            minimum: 0
+          distance:
+            type: number
+            minimum: 0
+
+  WorkoutExercise:
+    Type: AWS::ApiGateway::Model
+    Properties:
+      RestApiId: !Ref Api
+      ContentType: application/json
+      Name: "WorkoutExercise"
+      Schema:
+        $schema: "http://json-schema.org/draft-04/schema#"
+        title: "WorkoutExercise"
+        type: "object"
+        required:
+          - id
+          - exercise
+          - sets
+        properties:
+          id:
+            type: string
+          exercise:
+            type: string
+            minimum: 0
+          sets:
+            type: array
+            items:
+              "$ref": !Sub "https://apigateway.amazonaws.com/restapis/${Api}/models/Set"
+
+  Workout:
+    Type: AWS::ApiGateway::Model
+    Properties:
+      RestApiId: !Ref Api
+      ContentType: application/json
+      Name: "Workout"
+      Schema:
+        $schema: "http://json-schema.org/draft-04/schema#"
+        title: "Workout"
+        type: "object"
+        required:
+          - start
+          - exercises
+        properties:
+          id:
+            type: string
+          name:
+            type: string
+          start:
+            type: string
+          end:
+            type: string
+          exercises:
+            type: array
+            items:
+              "$ref": !Sub "https://apigateway.amazonaws.com/restapis/${Api}/models/WorkoutExercise"
+
   ScheduleGroup:
     Type: AWS::Scheduler::ScheduleGroup
     Properties:
@@ -285,6 +373,7 @@ Resources:
       FunctionName: "heart-api"
       Layers:
         - arn:aws:lambda:ca-central-1:583168578067:layer:firebase:2
+        - arn:aws:lambda:ca-central-1:583168578067:layer:dynamo-utils:2
       Role: !GetAtt LambdaExecutionRole.Arn
 
   ApiFunctionLogGroup:
@@ -392,25 +481,7 @@ Resources:
       HttpMethod: POST
       ResourceId: !Ref WorkoutsListResource
       RestApiId: !Ref Api
-      OperationName: "create-workout"
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri:
-          Fn::Sub:
-            - "arn:aws:apigateway:${Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations"
-            - Region: !Ref "AWS::Region"
-              LambdaArn: !GetAtt ApiFunction.Arn
-
-  EditWorkoutMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      AuthorizerId: !Ref Authorizer
-      AuthorizationType: CUSTOM
-      HttpMethod: PUT
-      ResourceId: !Ref WorkoutsDetailResource
-      RestApiId: !Ref Api
-      OperationName: "edit-workout"
+      OperationName: "save-workout"
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
@@ -423,38 +494,35 @@ Resources:
   DeleteWorkoutMethod:
     Type: AWS::ApiGateway::Method
     Properties:
-      AuthorizerId: !Ref Authorizer
       AuthorizationType: CUSTOM
+      AuthorizerId: !Ref Authorizer
       HttpMethod: DELETE
+      Integration:
+        Type: AWS
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:dynamodb:action/DeleteItem"
+        Credentials: !GetAtt LambdaExecutionRole.Arn
+        RequestTemplates:
+          application/json: !Sub |
+            {
+              "TableName": "${WorkoutsDatabaseName}",
+              "Key": {
+                "PK": {
+                  "S": "USER#$context.authorizer.principalId"
+                },
+                "SK": {
+                  "S": "WORKOUT#$input.params('workoutId')"
+                }
+              }
+            }
+        IntegrationResponses:
+          - StatusCode: 204
+      MethodResponses:
+        - StatusCode: 204
       ResourceId: !Ref WorkoutsDetailResource
       RestApiId: !Ref Api
-      OperationName: "delete-workout"
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri:
-          Fn::Sub:
-            - "arn:aws:apigateway:${Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations"
-            - Region: !Ref "AWS::Region"
-              LambdaArn: !GetAtt ApiFunction.Arn
-
-  GetWorkoutMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      AuthorizerId: !Ref Authorizer
-      AuthorizationType: CUSTOM
-      HttpMethod: GET
-      ResourceId: !Ref WorkoutsDetailResource
-      RestApiId: !Ref Api
-      OperationName: "get-workout"
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri:
-          Fn::Sub:
-            - "arn:aws:apigateway:${Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations"
-            - Region: !Ref "AWS::Region"
-              LambdaArn: !GetAtt ApiFunction.Arn
+      RequestParameters:
+        method.request.path.workoutId: true
 
   ListWorkoutsMethod:
     Type: AWS::ApiGateway::Method
@@ -466,13 +534,63 @@ Resources:
       RestApiId: !Ref Api
       OperationName: "list-workouts"
       Integration:
-        Type: AWS_PROXY
+        Type: AWS
         IntegrationHttpMethod: POST
-        Uri:
-          Fn::Sub:
-            - "arn:aws:apigateway:${Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations"
-            - Region: !Ref "AWS::Region"
-              LambdaArn: !GetAtt ApiFunction.Arn
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:dynamodb:action/Query
+        Credentials: !GetAtt LambdaExecutionRole.Arn
+        RequestTemplates:
+          application/json: !Sub |
+            {
+              "TableName": "${WorkoutsDatabaseName}",
+              "KeyConditionExpression": "#PK = :PK AND begins_with( #SK , :PREFIX )",
+              "ExpressionAttributeNames": {
+                "#PK": "PK",
+                "#SK": "SK"
+              },
+              "ExpressionAttributeValues": {
+                ":PK": { "S": "USER#$context.authorizer.principalId" },
+                ":PREFIX": { "S": "WORKOUT" }
+              },
+              "ScanIndexForward": true
+            }
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseTemplates:
+              application/json: |
+                {
+                  "workouts": [
+                  #foreach($item in $input.path('$.Items'))
+                    {
+                      "id": "$item.SK.S.replace("WORKOUT#", "")",
+                      "start": "$item.start.S",
+                      "end": #if($item.end != "") "$item.end.S" #else null #end,
+                      "name": #if($item.name != "") "$item.name.S" #else null #end,
+                      "exercises": [
+                        #foreach($ex in $item.exercises.L)
+                          {
+                            "id": "$ex.M.id.S",
+                            "exercise": "$ex.M.exercise.S",
+                            "sets": [
+                              #foreach($set in $ex.M.sets.L)
+                                {
+                                  "id": "$set.M.id.S",
+                                  "reps": #if($set.M.reps != "") $set.M.reps.N #else null #end,
+                                  "weight": #if($set.M.weight != "") $set.M.weight.N #else null #end,
+                                  "duration": #if($set.M.duration != "") $set.M.duration.N #else null #end,
+                                  "distance": #if($set.M.distance != "") $set.M.distance.N #else null #end,
+                                  "completed": #if($set.M.completed != "") $set.M.completed.BOOL #else null #end 
+                                }#if($foreach.hasNext),#end
+                              #end
+                            ]
+                          }#if($foreach.hasNext),#end
+                        #end
+                      ]
+                    }#if($foreach.hasNext),#end
+                  #end
+                  ]
+                }
+      MethodResponses:
+        - StatusCode: 200
 
   GetExercisesMethod:
     Type: AWS::ApiGateway::Method
@@ -546,9 +664,7 @@ Resources:
       - DeleteAccountMethod
       - GetExercisesMethod
       - ListWorkoutsMethod
-      - GetWorkoutMethod
       - CreateWorkoutMethod
-      - EditWorkoutMethod
       - DeleteWorkoutMethod
     Properties:
       RestApiId: !Ref Api

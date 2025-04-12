@@ -4,6 +4,7 @@ from utils import custom_serializer, dash_to_snake
 
 import accounts
 import feedback
+import workouts
 
 
 def router(event: dict) -> dict:
@@ -34,6 +35,12 @@ def router(event: dict) -> dict:
         } if path.startswith('/feedback'):
             function_name = dash_to_snake(operation)
             return getattr(feedback, function_name)(**request(event))
+        case {
+            'path': path,
+            'requestContext': {'operationName': operation},
+        } if path.startswith('/workouts'):
+            function_name = dash_to_snake(operation)
+            return getattr(workouts, function_name)(**request(event))
         case {'path': path}:
             raise NotFound(path)
     raise ValueError(event)
