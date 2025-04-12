@@ -372,7 +372,6 @@ Resources:
           UPLOAD_BUCKET: !FindInMap [ Env, !Ref Env, UploadBucket ]
       FunctionName: "heart-api"
       Layers:
-        - arn:aws:lambda:ca-central-1:583168578067:layer:firebase:2
         - arn:aws:lambda:ca-central-1:583168578067:layer:dynamo-utils:2
       Role: !GetAtt LambdaExecutionRole.Arn
 

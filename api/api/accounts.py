@@ -3,15 +3,10 @@ import os
 
 import boto3
 import botocore.exceptions
-import firebase_admin
-from firebase_admin import credentials
 
 from errors import Forbidden
 from models import User
 from utils import get_presigned_upload_link, delete_from_bucket
-
-cred = credentials.Certificate('firebase.json')
-firebase_admin.initialize_app(cred)
 
 _scheduler = boto3.client('scheduler')
 
