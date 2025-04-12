@@ -115,6 +115,7 @@ Resources:
       Schema:
         $schema: "http://json-schema.org/draft-04/schema#"
         title: "ExerciseListResponse"
+        description: "A single exercise"
         type: "object"
         required:
           - exercises
@@ -133,14 +134,11 @@ Resources:
       Schema:
         $schema: "http://json-schema.org/draft-04/schema#"
         title: "Set"
+        description: "A single workout set"
         type: "object"
         required:
           - id
           - completed
-          - weight
-          - reps
-          - duration
-          - distance
         properties:
           id:
             type: string
@@ -169,6 +167,7 @@ Resources:
       Schema:
         $schema: "http://json-schema.org/draft-04/schema#"
         title: "WorkoutExercise"
+        description: "A single exercise, a collection of sets"
         type: "object"
         required:
           - id
@@ -194,6 +193,7 @@ Resources:
       Schema:
         $schema: "http://json-schema.org/draft-04/schema#"
         title: "Workout"
+        description: "A single workout, a collection of workout exercises"
         type: "object"
         required:
           - start
@@ -211,6 +211,48 @@ Resources:
             type: array
             items:
               "$ref": !Sub "https://apigateway.amazonaws.com/restapis/${Api}/models/WorkoutExercise"
+
+  WorkoutResponse:
+    Type: AWS::ApiGateway::Model
+    Properties:
+      RestApiId: !Ref Api
+      ContentType: application/json
+      Name: "WorkoutResponse"
+      Schema:
+        $schema: "http://json-schema.org/draft-04/schema#"
+        title: "WorkoutResponse"
+        description: "Collection of workouts"
+        type: "object"
+        required:
+          - workouts
+        properties:
+          workouts:
+            type: array
+            items:
+              "$ref": !Sub "https://apigateway.amazonaws.com/restapis/${Api}/models/Workout"
+
+  Validator:
+    Type: AWS::ApiGateway::RequestValidator
+    Properties:
+      Name: "full-validator"
+      RestApiId: !Ref Api
+      ValidateRequestBody: true
+      ValidateRequestParameters: true
+
+  GatewayResponse400:
+    Type: AWS::ApiGateway::GatewayResponse
+    Properties:
+      ResponseType: BAD_REQUEST_BODY
+      RestApiId: !Ref Api
+      StatusCode: 400
+      ResponseTemplates:
+        application/json: |
+          {
+            "code": "$context.error.responseType",
+            "message": "$context.error.validationErrorString"
+          }
+      ResponseParameters:
+        gatewayresponse.header.Content-Type: "'application/json'"
 
   ScheduleGroup:
     Type: AWS::Scheduler::ScheduleGroup
@@ -489,6 +531,9 @@ Resources:
             - "arn:aws:apigateway:${Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations"
             - Region: !Ref "AWS::Region"
               LambdaArn: !GetAtt ApiFunction.Arn
+      RequestModels:
+        application/json: !Ref Workout
+      RequestValidatorId: !Ref Validator
 
   DeleteWorkoutMethod:
     Type: AWS::ApiGateway::Method
@@ -590,6 +635,8 @@ Resources:
                 }
       MethodResponses:
         - StatusCode: 200
+          ResponseModels:
+            application/json: !Ref WorkoutResponse
 
   GetExercisesMethod:
     Type: AWS::ApiGateway::Method

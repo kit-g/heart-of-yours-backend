@@ -137,7 +137,7 @@ class WorkoutExercise(DynamoModel):
             id=d['id'],
             exercise=d['exercise'],
             sets=[
-                Set.from_dict(each) for each in d['sets'].values()
+                Set.from_dict(each) for each in d['sets']
             ]
         )
 
@@ -177,7 +177,7 @@ class Workout(TypedModelWithSortableKey):
             name=d.get('name'),
             exercises=[
                 WorkoutExercise.from_dict(each)
-                for each in d.get('exercises', {}).values() or []
+                for each in d.get('exercises') or []
             ],
         )
 
