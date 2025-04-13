@@ -58,12 +58,42 @@ Resources:
       Name: "heart-api"
       Description: "Heart of yours API"
 
+  Account:
+    Type: AWS::ApiGateway::Model
+    Properties:
+      RestApiId: !Ref Api
+      ContentType: application/json
+      Description: "User model"
+      Name: "Account"
+      Schema:
+        $schema: "http://json-schema.org/draft-04/schema#"
+        title: "Account"
+        type: object
+        required:
+          - id
+        properties:
+          id:
+            type: string
+          displayName:
+            type: string
+          email:
+            type: string
+          remoteAvatar:
+            type: string
+          createdAt:
+            type: string
+            format: date-time
+          scheduledForDeletionAt:
+            type: string
+            format: date-time
+
   Exercise:
     Type: AWS::ApiGateway::Model
     Properties:
       RestApiId: !Ref Api
       ContentType: application/json
       Name: "Exercise"
+      Description: "Abstract exercise, e.g. Bench Press"
       Schema:
         $schema: "http://json-schema.org/draft-04/schema#"
         title: "Exercise"
@@ -112,10 +142,10 @@ Resources:
       RestApiId: !Ref Api
       ContentType: application/json
       Name: "ExerciseListResponse"
+      Description: "A collection of exercises"
       Schema:
         $schema: "http://json-schema.org/draft-04/schema#"
         title: "ExerciseListResponse"
-        description: "A single exercise"
         type: "object"
         required:
           - exercises
@@ -131,10 +161,10 @@ Resources:
       RestApiId: !Ref Api
       ContentType: application/json
       Name: "Set"
+      Description: "A single workout set"
       Schema:
         $schema: "http://json-schema.org/draft-04/schema#"
         title: "Set"
-        description: "A single workout set"
         type: "object"
         required:
           - id
@@ -164,10 +194,10 @@ Resources:
       RestApiId: !Ref Api
       ContentType: application/json
       Name: "WorkoutExercise"
+      Description: "A single exercise instance, a collection of sets"
       Schema:
         $schema: "http://json-schema.org/draft-04/schema#"
         title: "WorkoutExercise"
-        description: "A single exercise, a collection of sets"
         type: "object"
         required:
           - id
@@ -190,10 +220,10 @@ Resources:
       RestApiId: !Ref Api
       ContentType: application/json
       Name: "Workout"
+      Description: "A single workout, a collection of workout exercises"
       Schema:
         $schema: "http://json-schema.org/draft-04/schema#"
         title: "Workout"
-        description: "A single workout, a collection of workout exercises"
         type: "object"
         required:
           - start
@@ -218,10 +248,10 @@ Resources:
       RestApiId: !Ref Api
       ContentType: application/json
       Name: "WorkoutResponse"
+      Description: "Collection of workouts"
       Schema:
         $schema: "http://json-schema.org/draft-04/schema#"
         title: "WorkoutResponse"
-        description: "Collection of workouts"
         type: "object"
         required:
           - workouts
@@ -406,12 +436,14 @@ Resources:
       Environment:
         Variables:
           ACCOUNT_DELETION_OFFSET: !FindInMap [ Env, !Ref Env, AccountDeletionOffset ]
-          #          BACKGROUND_FUNCTION: !GetAtt BackgroundFunction.Arn
+          BACKGROUND_FUNCTION: ""
+#          BACKGROUND_FUNCTION: !GetAtt BackgroundFunction.Arn
           BACKGROUND_ROLE: !GetAtt LambdaExecutionRole.Arn
           SCHEDULE_GROUP: !Ref ScheduleGroup
           MEDIA_BUCKET: !FindInMap [ Env, !Ref Env, MediaBucket ]
           MONITORING_TOPIC: !Ref MonitoringTopic
           UPLOAD_BUCKET: !FindInMap [ Env, !Ref Env, UploadBucket ]
+          WORKOUTS_TABLE: !Ref WorkoutsDatabase
       FunctionName: "heart-api"
       Layers:
         - arn:aws:lambda:ca-central-1:583168578067:layer:dynamo-utils:2
@@ -459,6 +491,88 @@ Resources:
       Name: "main-authorizer"
       RestApiId: !Ref Api
       Type: REQUEST
+
+  RegisterAccountMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref Authorizer
+      HttpMethod: POST
+      OperationName: "register-account"
+      Integration:
+        Credentials: !GetAtt LambdaExecutionRole.Arn
+        Type: AWS
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:dynamodb:action/UpdateItem"
+        RequestTemplates:
+          application/json: !Sub |
+            #set($userId = $context.authorizer.principalId)
+            #set($now = $context.requestTimeEpoch)
+  
+            {
+              "TableName": "${WorkoutsDatabaseName}",
+              "Key": {
+                "PK": { "S": "USER#$userId" },
+                "SK": { "S": "ACCOUNT" }
+              },
+              "UpdateExpression": "SET #id = :id, #email = :email, #displayName = :displayName, #avatar = :avatar, #lastLoginAt = :now, #createdAt = if_not_exists(#createdAt, :created)",
+              "ExpressionAttributeNames": {
+                "#id": "id",
+                "#email": "email",
+                "#displayName": "displayName",
+                "#avatar": "avatar",
+                "#lastLoginAt": "lastLoginAt",
+                "#createdAt": "createdAt"
+              },
+              "ExpressionAttributeValues": {
+                ":id": {
+                  "S": "$userId"
+                },
+                ":email": {
+                  "S": "$input.path('$.email')"
+                },
+                ":displayName": {
+                  "S": "$input.path('$.displayName')"
+                },
+                ":avatar": {
+                  "S": "$input.path('$.avatar')"
+                },
+                ":now": {
+                  "N": "$now"
+                },
+                ":created": {
+                  "N": "$now"
+                }
+              },
+              "ReturnValues": "ALL_NEW"
+            }
+        PassthroughBehavior: NEVER
+        ContentHandling: CONVERT_TO_TEXT
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseTemplates:
+              application/json: |
+                #set($item = $input.path('$.Attributes'))
+                {
+                  "id": "$item.id.S",
+                  "email": "$item.email.S",
+                  "displayName": #if($item.displayName != "") "$item.displayName.S" #else null #end,
+                  "avatar": #if ($item.avatar != "") "$item.avatar.S" #else null #end,
+                  "createdAt": $item.createdAt.N,
+                  #if ($item.scheduledForDeletionAt != "")
+                  "scheduledForDeletionAt":  $item.scheduledForDeletionAt.N, 
+                  #end
+                  "lastLoginAt": $item.lastLoginAt.N
+                }
+      MethodResponses:
+        - StatusCode: 200
+          ResponseModels:
+            "application/json": !Ref Account
+      RequestModels:
+        "application/json": !Ref Account
+      RequestValidatorId: !Ref Validator
+      ResourceId: !Ref AccountsResource
+      RestApiId: !Ref Api
 
   DeleteAccountMethod:
     Type: AWS::ApiGateway::Method

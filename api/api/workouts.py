@@ -1,6 +1,8 @@
+import os
+
 from models import User, Workout
 
-_table = 'workouts'
+_table = os.environ['WORKOUTS_TABLE']
 
 
 def save_workout(*, user: User, **body) -> tuple[dict | None, int]:
