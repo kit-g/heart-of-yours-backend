@@ -5,6 +5,7 @@ from typing import Literal
 
 import firebase_admin
 from firebase_admin import auth, credentials
+from firebase_admin.auth import ExpiredIdTokenError
 
 cred = credentials.Certificate("firebase.json")
 firebase_admin.initialize_app(cred)
@@ -86,6 +87,9 @@ def handler(event, _):
                                 return generate_policy("Deny", resource)
                             case _:
                                 return generate_policy("Allow", resource, user=user)
+                    except ExpiredIdTokenError as e:
+                        print(e.cause)
+                        raise Exception("Unauthorized")
                     except Exception as e:
                         print(f"Token verification failed: {e}")
                         return generate_policy("Deny", resource)

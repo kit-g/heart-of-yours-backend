@@ -15,6 +15,11 @@ _cors = {
 
 def response(status: int = 200, serializer=None, body=None) -> dict:
     match body:
+        case None, code if isinstance(code, int):
+            return {
+                'statusCode': code,
+                'headers': _cors,
+            }
         case d, code if isinstance(code, int) and isinstance(d, dict):
             status = code
             body = d

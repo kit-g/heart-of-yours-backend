@@ -1,27 +1,24 @@
 import datetime
+import json
 import os
 
 import boto3
 import botocore.exceptions
-import firebase_admin
-from firebase_admin import credentials
 
-from errors import Forbidden
+from errors import Forbidden, EmptyResponse
 from models import User
 from utils import get_presigned_upload_link, delete_from_bucket
-
-cred = credentials.Certificate('firebase.json')
-firebase_admin.initialize_app(cred)
 
 _scheduler = boto3.client('scheduler')
 
 account_deletion_offset = os.environ.get('ACCOUNT_DELETION_OFFSET') or 30
-# background_function = os.environ['BACKGROUND_FUNCTION']
+background_function = os.environ['BACKGROUND_FUNCTION']
 background_role = os.environ['BACKGROUND_ROLE']
 schedule_group = os.environ['SCHEDULE_GROUP']
 upload_bucket = os.environ['UPLOAD_BUCKET']
 media_bucket = os.environ['MEDIA_BUCKET']
-destination_tag = f"<Tagging><TagSet><Tag><Key>destination</Key><Value>{media_bucket}</Value></Tag></TagSet></Tagging>"
+table = os.environ['WORKOUTS_TABLE']
+destination_tag = f'<Tagging><TagSet><Tag><Key>destination</Key><Value>{media_bucket}</Value></Tag></TagSet></Tagging>'
 
 min_content_length: int = 128
 max_content_length: int = 31_457_280  # 30 MB max
@@ -47,39 +44,40 @@ def delete_account(*, user: User, account_id: str) -> None:
 
     schedule_name = f'delete-account-{user.id}'
 
-    # match doc:
-    #     case {'scheduledForDeletionAt': when, 'deletionSchedule': schedule} if when and schedule:
-    #         # account is already scheduled
-    #         raise EmptyResponse
-    #     case _:
-    #
-    #         try:
-    #             message = {
-    #                 'Event': 'AccountDeletion',
-    #                 'Payload': {'user_id': user.id},
-    #             }
-    #
-    #             arn = _scheduler.create_schedule(
-    #                 ActionAfterCompletion='DELETE',
-    #                 Name=schedule_name,
-    #                 GroupName=schedule_group,
-    #                 ScheduleExpression=f'at({when.strftime('%Y-%m-%dT%H:%M:%S')})',
-    #                 Target={
-    #                     'Arn': background_function,
-    #                     'RoleArn': background_role,
-    #                     'Input': json.dumps(message),
-    #                 },
-    #                 FlexibleTimeWindow={'Mode': 'OFF'},
-    #                 State='ENABLED',
-    #             )['ScheduleArn']
-    #
-    #
-    #         except botocore.exceptions.ClientError as error:
-    #             # if schedule exists, ok
-    #             if error.response['Error']['Code'] != 'ConflictException':
-    #                 raise error
-    #
-    #         raise EmptyResponse
+    doc = {}
+
+    match doc:
+        case {'scheduledForDeletionAt': when, 'deletionSchedule': schedule} if when and schedule:
+            # account is already scheduled
+            raise EmptyResponse
+        case _:
+
+            try:
+                message = {
+                    'Event': 'AccountDeletion',
+                    'Payload': {'user_id': user.id},
+                }
+
+                arn = _scheduler.create_schedule(
+                    ActionAfterCompletion='DELETE',
+                    Name=schedule_name,
+                    GroupName=schedule_group,
+                    ScheduleExpression=f'at({when.strftime('%Y-%m-%dT%H:%M:%S')})',
+                    Target={
+                        'Arn': background_function,
+                        'RoleArn': background_role,
+                        'Input': json.dumps(message),
+                    },
+                    FlexibleTimeWindow={'Mode': 'OFF'},
+                    State='ENABLED',
+                )['ScheduleArn']
+
+            except botocore.exceptions.ClientError as error:
+                # if schedule exists, ok
+                if error.response['Error']['Code'] != 'ConflictException':
+                    raise error
+
+            raise EmptyResponse
 
 
 def edit_account(*, user: User, account_id: str, action: str, _: dict = None) -> dict | None:  # noqa
@@ -128,7 +126,7 @@ def account_info(*, user: User, account_id: str, action: str, mime_type: str = N
     match action:
         case 'uploadAvatar':
             default_type = 'image/png'
-            tag = {"tagging": destination_tag}
+            tag = {'tagging': destination_tag}
             return get_presigned_upload_link(
                 bucket=upload_bucket,
                 key=f'avatars/{user.id}',
@@ -139,7 +137,7 @@ def account_info(*, user: User, account_id: str, action: str, mime_type: str = N
                     **tag,
                 },
                 conditions=[
-                    ["content-length-range", min_content_length, max_content_length],
+                    ['content-length-range', min_content_length, max_content_length],
                     {'Content-Type': mime_type or default_type},
                     tag,
                 ],
