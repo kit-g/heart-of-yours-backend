@@ -118,6 +118,26 @@ Resources:
             CachedMethods:
               - GET
               - HEAD
+          - PathPattern: "/config"
+            TargetOriginId: UserMediaBucketOrigin
+            ViewerProtocolPolicy: https-only
+            CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6  # CachingOptimized
+            AllowedMethods:
+              - GET
+              - HEAD
+            CachedMethods:
+              - GET
+              - HEAD
+          - PathPattern: "/templates"
+            TargetOriginId: UserMediaBucketOrigin
+            ViewerProtocolPolicy: https-only
+            CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6  # CachingOptimized
+            AllowedMethods:
+              - GET
+              - HEAD
+            CachedMethods:
+              - GET
+              - HEAD
         DefaultCacheBehavior:
           TargetOriginId: ExerciseBucketOrigin
           ViewerProtocolPolicy: redirect-to-https
