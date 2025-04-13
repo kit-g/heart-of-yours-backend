@@ -1,9 +1,10 @@
 from errors import EmptyResponse, Unauthorized, NotFound, Forbidden
 from framework import response, request, argument_error
-from utils import custom_serializer, dash_to_snake
+from utils import custom_serializer, dash_to_snake, send_monitoring_notification
 
 import accounts
 import feedback
+import templates
 import workouts
 
 
@@ -41,6 +42,12 @@ def router(event: dict) -> dict:
         } if path.startswith('/workouts'):
             function_name = dash_to_snake(operation)
             return getattr(workouts, function_name)(**request(event))
+        case {
+            'path': path,
+            'requestContext': {'operationName': operation},
+        } if path.startswith('/templates'):
+            function_name = dash_to_snake(operation)
+            return getattr(templates, function_name)(**request(event))
         case {'path': path}:
             raise NotFound(path)
     raise ValueError(event)
@@ -74,7 +81,8 @@ def handler(event: dict, _):
             body={'error': f'{e.path} not found'},
         )
     except Exception as e:
-        # todo monitor
+        message = f'{type(e)}: {e} - {event}'
+        send_monitoring_notification(message)
         return response(
             status=500,
             body={'error': str(e)},

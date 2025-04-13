@@ -6,6 +6,7 @@ from dynamo import TypedModelWithSortableKey, DynamoModel
 _exercise_type = 'EXERCISE'
 _user_type = 'USER'
 _workout_type = 'WORKOUT'
+_template_type = 'TEMPLATE'
 
 
 @dataclass
@@ -192,6 +193,59 @@ class Workout(TypedModelWithSortableKey):
     @property
     def sk(self) -> str:
         return f'{self.type}#{self.start}'
+
+    @property
+    def id(self) -> str:
+        return self._id
+
+
+@dataclass
+class Template(TypedModelWithSortableKey):
+    user_id: str
+    _id: str
+    name: str = None
+    order: int = None
+    exercises: list[WorkoutExercise] = field(default_factory=list)
+
+    def _to_item(self) -> dict[str, Any]:
+        return {
+            'PK': self.pk,
+            'SK': self.sk,
+            'order': self.order,
+            'name': self.name,
+            'exercises': [
+                {'M': each.to_item()} for each in self.exercises
+            ],
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict, user_id: str) -> Self:
+        return cls(
+            user_id=user_id,
+            order=d.get('order'),
+            _id=d['id'],
+            name=d.get('name'),
+            exercises=[
+                WorkoutExercise.from_dict(each)
+                for each in d.get('exercises') or []
+            ],
+        )
+
+    @classmethod
+    def from_item(cls, record: dict):
+        pass
+
+    @property
+    def type(self) -> str:
+        return _template_type
+
+    @property
+    def pk(self) -> str:
+        return f'{_user_type}#{self.user_id}'
+
+    @property
+    def sk(self) -> str:
+        return f'{self.type}#{self.id}'
 
     @property
     def id(self) -> str:

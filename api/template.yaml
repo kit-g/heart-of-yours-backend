@@ -242,6 +242,32 @@ Resources:
             items:
               "$ref": !Sub "https://apigateway.amazonaws.com/restapis/${Api}/models/WorkoutExercise"
 
+  Template:
+    Type: AWS::ApiGateway::Model
+    Properties:
+      RestApiId: !Ref Api
+      ContentType: application/json
+      Name: "Template"
+      Description: "A workout template"
+      Schema:
+        $schema: "http://json-schema.org/draft-04/schema#"
+        title: "Template"
+        type: "object"
+        required:
+          - id
+          - exercises
+        properties:
+          id:
+            type: string
+          name:
+            type: string
+          order:
+            type: number
+          exercises:
+            type: array
+            items:
+              "$ref": !Sub "https://apigateway.amazonaws.com/restapis/${Api}/models/WorkoutExercise"
+
   WorkoutResponse:
     Type: AWS::ApiGateway::Model
     Properties:
@@ -260,6 +286,25 @@ Resources:
             type: array
             items:
               "$ref": !Sub "https://apigateway.amazonaws.com/restapis/${Api}/models/Workout"
+
+  TemplateResponse:
+    Type: AWS::ApiGateway::Model
+    Properties:
+      RestApiId: !Ref Api
+      ContentType: application/json
+      Name: "TemplateResponse"
+      Description: "Collection of templates"
+      Schema:
+        $schema: "http://json-schema.org/draft-04/schema#"
+        title: "TemplateResponse"
+        type: "object"
+        required:
+          - workouts
+        properties:
+          workouts:
+            type: array
+            items:
+              "$ref": !Sub "https://apigateway.amazonaws.com/restapis/${Api}/models/Template"
 
   Validator:
     Type: AWS::ApiGateway::RequestValidator
@@ -392,6 +437,20 @@ Resources:
     Properties:
       ParentId: !Ref WorkoutsListResource
       PathPart: "{workoutId}"
+      RestApiId: !Ref Api
+
+  TemplatesListResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId: !GetAtt Api.RootResourceId
+      PathPart: "templates"
+      RestApiId: !Ref Api
+
+  TemplatesDetailResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId: !Ref TemplatesListResource
+      PathPart: "{templateId}"
       RestApiId: !Ref Api
 
   ExercisesListResource:
@@ -677,6 +736,7 @@ Resources:
           - StatusCode: 204
       MethodResponses:
         - StatusCode: 204
+      OperationName: "delete-workout"
       ResourceId: !Ref WorkoutsDetailResource
       RestApiId: !Ref Api
       RequestParameters:
@@ -751,6 +811,130 @@ Resources:
         - StatusCode: 200
           ResponseModels:
             application/json: !Ref WorkoutResponse
+
+  CreateTemplateMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizerId: !Ref Authorizer
+      AuthorizationType: CUSTOM
+      HttpMethod: POST
+      ResourceId: !Ref TemplatesListResource
+      RestApiId: !Ref Api
+      OperationName: "save-template"
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri:
+          Fn::Sub:
+            - "arn:aws:apigateway:${Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations"
+            - Region: !Ref "AWS::Region"
+              LambdaArn: !GetAtt ApiFunction.Arn
+      RequestModels:
+        application/json: !Ref Template
+      RequestValidatorId: !Ref Validator
+
+  DeleteTemplateMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref Authorizer
+      HttpMethod: DELETE
+      Integration:
+        Type: AWS
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:dynamodb:action/DeleteItem"
+        Credentials: !GetAtt LambdaExecutionRole.Arn
+        RequestTemplates:
+          application/json: !Sub |
+            {
+              "TableName": "${WorkoutsDatabaseName}",
+              "Key": {
+                "PK": {
+                  "S": "USER#$context.authorizer.principalId"
+                },
+                "SK": {
+                  "S": "TEMPLATE#$input.params('templateId')"
+                }
+              }
+            }
+        IntegrationResponses:
+          - StatusCode: 204
+      MethodResponses:
+        - StatusCode: 204
+      OperationName: "delete-template"
+      ResourceId: !Ref TemplatesDetailResource
+      RestApiId: !Ref Api
+      RequestParameters:
+        method.request.path.templateId: true
+
+  ListTemplatesMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizerId: !Ref Authorizer
+      AuthorizationType: CUSTOM
+      HttpMethod: GET
+      ResourceId: !Ref TemplatesListResource
+      RestApiId: !Ref Api
+      OperationName: "list-templates"
+      Integration:
+        Type: AWS
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:dynamodb:action/Query"
+        Credentials: !GetAtt LambdaExecutionRole.Arn
+        RequestTemplates:
+          application/json: !Sub |
+            {
+              "TableName": "${WorkoutsDatabaseName}",
+              "KeyConditionExpression": "#PK = :PK AND begins_with( #SK , :PREFIX )",
+              "ExpressionAttributeNames": {
+                "#PK": "PK",
+                "#SK": "SK"
+              },
+              "ExpressionAttributeValues": {
+                ":PK": { "S": "USER#$context.authorizer.principalId" },
+                ":PREFIX": { "S": "TEMPLATE" }
+              }
+            }
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseTemplates:
+              application/json: |
+                {
+                  "templates": [
+                  #foreach($item in $input.path('$.Items'))
+                    {
+                      "id": "$item.SK.S.replace("TEMPLATE#", "")",
+                      "order": $item.order.N,
+                      "end": #if($item.end != "") "$item.end.S" #else null #end,
+                      "name": #if($item.name != "") "$item.name.S" #else null #end,
+                      "exercises": [
+                        #foreach($ex in $item.exercises.L)
+                          {
+                            "id": "$ex.M.id.S",
+                            "exercise": "$ex.M.exercise.S",
+                            "sets": [
+                              #foreach($set in $ex.M.sets.L)
+                                {
+                                  "id": "$set.M.id.S",
+                                  "reps": #if($set.M.reps != "") $set.M.reps.N #else null #end,
+                                  "weight": #if($set.M.weight != "") $set.M.weight.N #else null #end,
+                                  "duration": #if($set.M.duration != "") $set.M.duration.N #else null #end,
+                                  "distance": #if($set.M.distance != "") $set.M.distance.N #else null #end,
+                                  "completed": #if($set.M.completed != "") $set.M.completed.BOOL #else null #end 
+                                }#if($foreach.hasNext),#end
+                              #end
+                            ]
+                          }#if($foreach.hasNext),#end
+                        #end
+                      ]
+                    }#if($foreach.hasNext),#end
+                  #end
+                  ]
+                }
+      MethodResponses:
+        - StatusCode: 200
+          ResponseModels:
+            application/json: !Ref TemplateResponse
 
   GetExercisesMethod:
     Type: AWS::ApiGateway::Method
