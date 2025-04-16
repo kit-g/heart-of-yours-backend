@@ -22,13 +22,13 @@ Parameters:
 Mappings:
   Env:
     dev:
-      AccountDeletionOffset: 1 # days
+      AccountDeletionOffset: 2 # days
       LogRetention: 3 # days
       UploadBucket: "583168578067-upload"
       MediaBucket: "583168578067-user-media"
       NeedDatabaseDeletionProtection: false
     prod:
-      AccountDeletionOffset: 1 # days
+      AccountDeletionOffset: 30 # days
       LogRetention: 90 # days
       NeedDatabaseDeletionProtection: true
 
@@ -477,15 +477,15 @@ Resources:
         - arn:aws:lambda:ca-central-1:583168578067:layer:firebase:2
       Role: !GetAtt LambdaExecutionRole.Arn
 
-  #  BackgroundFunction:
-  #    Type: AWS::Serverless::Function
-  #    Properties:
-  #      CodeUri: ./background
-  #      Description: "Part of Heart API: background handler"
-  #      FunctionName: "heart-background"
-  #      Layers:
-  #        - arn:aws:lambda:ca-central-1:583168578067:layer:firebase:2
-  #      Role: !GetAtt LambdaExecutionRole.Arn
+  BackgroundFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./background
+      Description: "Part of Heart API: background handler"
+      FunctionName: "heart-background"
+      Layers:
+        - arn:aws:lambda:ca-central-1:583168578067:layer:firebase:2
+      Role: !GetAtt LambdaExecutionRole.Arn
 
   ApiFunction:
     Type: AWS::Serverless::Function
@@ -495,8 +495,7 @@ Resources:
       Environment:
         Variables:
           ACCOUNT_DELETION_OFFSET: !FindInMap [ Env, !Ref Env, AccountDeletionOffset ]
-          BACKGROUND_FUNCTION: ""
-#          BACKGROUND_FUNCTION: !GetAtt BackgroundFunction.Arn
+          BACKGROUND_FUNCTION: !GetAtt BackgroundFunction.Arn
           BACKGROUND_ROLE: !GetAtt LambdaExecutionRole.Arn
           SCHEDULE_GROUP: !Ref ScheduleGroup
           MEDIA_BUCKET: !FindInMap [ Env, !Ref Env, MediaBucket ]
@@ -619,7 +618,7 @@ Resources:
                   "avatar": #if ($item.avatar != "") "$item.avatar.S" #else null #end,
                   "createdAt": $item.createdAt.N,
                   #if ($item.scheduledForDeletionAt != "")
-                  "scheduledForDeletionAt":  $item.scheduledForDeletionAt.N, 
+                  "scheduledForDeletionAt":  "$item.scheduledForDeletionAt.S", 
                   #end
                   "lastLoginAt": $item.lastLoginAt.N
                 }

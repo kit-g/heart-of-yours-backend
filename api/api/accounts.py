@@ -1,17 +1,18 @@
-import datetime
+from datetime import datetime, timedelta, UTC
 import json
 import os
 
 import boto3
 import botocore.exceptions
+from dynamo import db
 
 from errors import Forbidden, EmptyResponse
 from models import User
 from utils import get_presigned_upload_link, delete_from_bucket
 
-_scheduler = boto3.client('scheduler')
+scheduler = boto3.client('scheduler')
 
-account_deletion_offset = os.environ.get('ACCOUNT_DELETION_OFFSET') or 30
+account_deletion_offset = int(os.environ.get('ACCOUNT_DELETION_OFFSET', 30))
 background_function = os.environ['BACKGROUND_FUNCTION']
 background_role = os.environ['BACKGROUND_ROLE']
 schedule_group = os.environ['SCHEDULE_GROUP']
@@ -40,17 +41,36 @@ def delete_account(*, user: User, account_id: str) -> None:
     :raises botocore.exceptions.ClientError: If AWS Scheduler fails or other
             service errors occur during account deletion scheduling.
     """
-    when = datetime.datetime.now(datetime.UTC) + datetime.timedelta(days=30)
-
+    when = datetime.now(UTC) + timedelta(days=account_deletion_offset)
     schedule_name = f'delete-account-{user.id}'
 
-    doc = {}
+    response = _get_account(user.id)
 
-    match doc:
-        case {'scheduledForDeletionAt': when, 'deletionSchedule': schedule} if when and schedule:
-            # account is already scheduled
+    item = response.get('Item')
+    if not item:
+        raise Forbidden("No such account")
+
+    match item:
+        case {
+            'scheduledForDeletionAt': {'S': delete_at},
+            'deletionSchedule': {'S': schedule},
+        } if delete_at and schedule:
             raise EmptyResponse
         case _:
+
+            def update():
+                db().update_item(
+                    TableName=table,
+                    Key={
+                        'PK': {'S': f'USER#{account_id}'},
+                        'SK': {'S': 'ACCOUNT'}
+                    },
+                    UpdateExpression="SET scheduledForDeletionAt = :when, deletionSchedule = :arn",
+                    ExpressionAttributeValues={
+                        ':when': {'S': when.isoformat()},
+                        ':arn': {'S': arn}
+                    }
+                )
 
             try:
                 message = {
@@ -58,11 +78,11 @@ def delete_account(*, user: User, account_id: str) -> None:
                     'Payload': {'user_id': user.id},
                 }
 
-                arn = _scheduler.create_schedule(
+                arn = scheduler.create_schedule(
                     ActionAfterCompletion='DELETE',
                     Name=schedule_name,
                     GroupName=schedule_group,
-                    ScheduleExpression=f'at({when.strftime('%Y-%m-%dT%H:%M:%S')})',
+                    ScheduleExpression=f'at({when.strftime("%Y-%m-%dT%H:%M:%S")})',
                     Target={
                         'Arn': background_function,
                         'RoleArn': background_role,
@@ -72,12 +92,14 @@ def delete_account(*, user: User, account_id: str) -> None:
                     State='ENABLED',
                 )['ScheduleArn']
 
+                update()
+
             except botocore.exceptions.ClientError as error:
                 # if schedule exists, ok
                 if error.response['Error']['Code'] != 'ConflictException':
                     raise error
 
-            raise EmptyResponse
+    raise EmptyResponse
 
 
 def edit_account(*, user: User, account_id: str, action: str, _: dict = None) -> dict | None:  # noqa
@@ -95,20 +117,26 @@ def _undo_account_deletion(user_id: str) -> None:
     This function retrieves the user document associated with the given user ID
     and checks if an account deletion schedule exists. If an account deletion
     schedule is found, it attempts to delete the schedule from the scheduler.
-    Once the schedule is deleted, the corresponding fields in the user document are
+    Once the schedule is deleted, the corresponding fields in the user item are
     updated to remove any trace of a pending deletion.
 
     :param user_id: User's Firebase ID
     :return: None
     """
-    doc = {}
+    item = _get_account(user_id).get('Item')
 
-    match doc:
-        case {'scheduledForDeletionAt': _, 'deletionSchedule': schedule} if schedule:
+    if not item:
+        raise Forbidden('No such account found')
+
+    match item:
+        case {
+            'scheduledForDeletionAt': {'S': delete_at},
+            'deletionSchedule': {'S': schedule},
+        } if delete_at and schedule:
             match f'{schedule}'.split('/'):
                 case [_, _, name]:
                     try:
-                        _scheduler.delete_schedule(
+                        scheduler.delete_schedule(
                             GroupName=schedule_group,
                             Name=name,
                         )
@@ -116,6 +144,15 @@ def _undo_account_deletion(user_id: str) -> None:
                         # if it does not exist, ok
                         if error.response['Error']['Code'] != 'ResourceNotFoundException':
                             raise error
+
+            db().update_item(
+                TableName=table,
+                Key={
+                    'PK': {'S': f'USER#{user_id}'},
+                    'SK': {'S': 'ACCOUNT'}
+                },
+                UpdateExpression="REMOVE scheduledForDeletionAt, deletionSchedule"
+            )
 
 
 def _remove_avatar(account_id: str) -> dict:
@@ -143,3 +180,18 @@ def account_info(*, user: User, account_id: str, action: str, mime_type: str = N
                 ],
             )
     raise Forbidden(f'Action {action} not allowed')
+
+
+def _get_account(account_id: str) -> dict:
+    """
+    Fetches account item from Dynamo
+    :param account_id: user's Firebase id
+    :return: DynamoDB get_item response
+    """
+    return db().get_item(
+        TableName=table,
+        Key={
+            'PK': {'S': f'USER#{account_id}'},
+            'SK': {'S': 'ACCOUNT'}
+        }
+    )
