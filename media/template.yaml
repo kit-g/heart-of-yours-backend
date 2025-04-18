@@ -23,8 +23,12 @@ Mappings:
   Env:
     dev:
       LogRetention: 3 # days
+      DistributionAlias: "dev.media.heart-of.me"
+      MediaDistributionCertificate: "arn:aws:acm:us-east-1:583168578067:certificate/297c34bc-7a74-4cb1-82c4-71bfe0114eb7"
     prod:
       LogRetention: 90 # days
+      DistributionAlias: "media.heart-of.me"
+      MediaDistributionCertificate: ""
 
 Resources:
   ExerciseBucket:
@@ -164,6 +168,11 @@ Resources:
             S3OriginConfig:
               OriginAccessIdentity: ""
             OriginAccessControlId: !Ref BucketOriginAccessControl
+        Aliases:
+          - !FindInMap [ Env, !Ref Env, DistributionAlias ]
+        ViewerCertificate:
+          AcmCertificateArn: !FindInMap [ Env, !Ref Env, MediaDistributionCertificate ]
+          SslSupportMethod: 'sni-only'
 
   ExerciseBucketPolicy:
     Type: AWS::S3::BucketPolicy
