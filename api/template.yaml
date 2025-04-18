@@ -967,9 +967,25 @@ Resources:
                       "name": "$item.SK.S",
                       "category": "$item.category.S",
                       "target": "$item.target.S",
-                      "asset": #if($item.asset != "") "$item.asset.S" #else null #end, 
-                      "thumbnail": #if($item.thumbnail != "") "$item.thumbnail.S" #else null #end,
-                      "instructions": #if($item.instructions != "") "$item.instructions.S" #else null #end
+                      "asset": #if($item.asset  != "")
+                        {
+                          "link": "$item.asset.M.link.S",
+                          "width": $item.asset.M.width.N,
+                          "height": $item.asset.M.height.N
+                        }
+                      #else
+                        null
+                      #end,
+                      "thumbnail": #if($item.thumbnail != "")
+                        {
+                          "link": "$item.thumbnail.M.link.S",
+                          "width": $item.thumbnail.M.width.N,
+                          "height": $item.thumbnail.M.height.N
+                        }
+                      #else
+                        null
+                      #end,
+                      "instructions": #if($item.instructions && $item.instructions.S) "$item.instructions.S" #else null #end
                     }#if($foreach.hasNext),#end
                   #end
                   ]
