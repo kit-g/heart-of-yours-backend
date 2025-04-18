@@ -6,14 +6,16 @@ import mimetypes
 from PIL import Image
 import io
 
-from common import logs, db
+from common import logs
 
 _assets = "assets"
 
 _s3 = boto3.client("s3")
+_dynamo = boto3.client("dynamodb")
 
 distribution = os.environ['DISTRIBUTION']
 _bucket = os.environ['BUCKET']
+table = os.environ['WORKOUTS_TABLE']
 
 
 def link(exercise: str, file: str) -> str:
@@ -32,7 +34,10 @@ def upload(*, file_path: str, file_name: str, content_type: str) -> None:
         file_path,
         _bucket,
         f'exercises/{file_name}',
-        ExtraArgs={"ContentType": content_type}
+        ExtraArgs={
+            "ContentType": content_type,
+            'CacheControl': 'public, max-age=31536000, immutable',
+        }
     )
 
 
@@ -61,7 +66,37 @@ def extract_thumbnail(file_path: str, thumbnail_size=(200, 200)):
 
 @logs
 def update(exercise: str, doc: dict):
-    return db.collection('exercises').document(exercise).update(doc)
+    """Generated"""
+    update_expr = "SET "
+    expr_attr_values = {}
+    expr_attr_names = {}
+    sets = []
+
+    for key, value in doc.items():
+        placeholder = f"#{key}"
+        value_placeholder = f":{key}"
+        sets.append(f"{placeholder} = {value_placeholder}")
+        expr_attr_names[placeholder] = key
+        expr_attr_values[value_placeholder] = {
+            'M': {
+                'link': {'S': value['link']},
+                'width': {'N': str(value['width'])},
+                'height': {'N': str(value['height'])},
+            }
+        }
+
+    update_expr += ", ".join(sets)
+
+    return _dynamo.update_item(
+        TableName=table,
+        Key={
+            'PK': {'S': 'EXERCISE'},
+            'SK': {'S': exercise},
+        },
+        UpdateExpression=update_expr,
+        ExpressionAttributeNames=expr_attr_names,
+        ExpressionAttributeValues=expr_attr_values,
+    )
 
 
 def upload_files():
