@@ -87,6 +87,30 @@ Resources:
             type: string
             format: date-time
 
+  ImageDescriptor:
+    Type: AWS::ApiGateway::Model
+    Properties:
+      RestApiId: !Ref Api
+      ContentType: application/json
+      Name: "ImageDescriptor"
+      Description: "Image params"
+      Schema:
+        $schema: "http://json-schema.org/draft-04/schema#"
+        title: "ImageDescriptor"
+        type: "object"
+        required:
+          - link
+        properties:
+          link:
+            type: string
+            format: uri
+          height:
+            type: number
+            minimum: 0
+          width:
+            type: number
+            minimum: 0
+
   Exercise:
     Type: AWS::ApiGateway::Model
     Properties:
@@ -130,9 +154,9 @@ Resources:
               - "Full Body"
               - "Cardio"
           asset:
-            type: string
+            "$ref": !Sub "https://apigateway.amazonaws.com/restapis/${Api}/models/ImageDescriptor"
           thumbnail:
-            type: string
+            "$ref": !Sub "https://apigateway.amazonaws.com/restapis/${Api}/models/ImageDescriptor"
           instructions:
             type: string
 
