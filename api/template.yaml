@@ -506,10 +506,23 @@ Resources:
     Properties:
       CodeUri: ./background
       Description: "Part of Heart API: background handler"
+      Environment:
+        Variables:
+          AUTH_FUNCTION: !GetAtt AuthorizerFunction.Arn
+          MEDIA_BUCKET: !FindInMap [ Env, !Ref Env, MediaBucket ]
+          WORKOUTS_TABLE: !Ref WorkoutsDatabase
       FunctionName: "heart-background"
-      Layers:
-        - arn:aws:lambda:ca-central-1:583168578067:layer:firebase:2
       Role: !GetAtt LambdaExecutionRole.Arn
+
+  BackgroundFunctionEventInvokeConfig:
+    Type: AWS::Lambda::EventInvokeConfig
+    Properties:
+      FunctionName: !Ref BackgroundFunction
+      Qualifier: "$LATEST"
+      MaximumRetryAttempts: 0
+      DestinationConfig:
+        OnFailure:
+          Destination: !Ref MonitoringTopic
 
   ApiFunction:
     Type: AWS::Serverless::Function
@@ -626,12 +639,13 @@ Resources:
                   "N": "$now"
                 }
               },
+              "ConditionExpression": "attribute_not_exists(deletedAt)",
               "ReturnValues": "ALL_NEW"
             }
         PassthroughBehavior: NEVER
         ContentHandling: CONVERT_TO_TEXT
         IntegrationResponses:
-          - StatusCode: 200
+          - StatusCode: "200"
             ResponseTemplates:
               application/json: |
                 #set($item = $input.path('$.Attributes'))
@@ -646,10 +660,23 @@ Resources:
                   #end
                   "lastLoginAt": $item.lastLoginAt.N
                 }
+          - SelectionPattern: "4\\d{2}"
+            StatusCode: "400"
+            ResponseTemplates:
+                application/json: !Sub |
+                  #set($response = $input.path('$'))
+                  #if($response.toString().contains("ConditionalCheckFailedException"))
+                    {
+                      "error": true,
+                      "code": "ACCOUNT_DELETED",
+                      "message": "Account has been deleted"
+                    }
+                  #end
       MethodResponses:
         - StatusCode: 200
           ResponseModels:
             "application/json": !Ref Account
+        - StatusCode: 400
       RequestModels:
         "application/json": !Ref Account
       RequestValidatorId: !Ref Validator
@@ -985,34 +1012,34 @@ Resources:
               application/json: |
                 #set($items = $input.path('$.Items'))
                 {
-                  "exercises": [
-                  #foreach($item in $items)
-                    {
-                      "name": "$item.SK.S",
-                      "category": "$item.category.S",
-                      "target": "$item.target.S",
-                      "asset": #if($item.asset  != "")
-                        {
-                          "link": "$item.asset.M.link.S",
-                          "width": $item.asset.M.width.N,
-                          "height": $item.asset.M.height.N
-                        }
-                      #else
-                        null
-                      #end,
-                      "thumbnail": #if($item.thumbnail != "")
-                        {
-                          "link": "$item.thumbnail.M.link.S",
-                          "width": $item.thumbnail.M.width.N,
-                          "height": $item.thumbnail.M.height.N
-                        }
-                      #else
-                        null
-                      #end,
-                      "instructions": #if($item.instructions && $item.instructions.S) "$item.instructions.S" #else null #end
-                    }#if($foreach.hasNext),#end
-                  #end
-                  ]
+                "exercises": [
+                #foreach($item in $items)
+                  {
+                    "name": "$item.SK.S",
+                    "category": "$item.category.S",
+                    "target": "$item.target.S",
+                    "asset": #if($item.asset  != "")
+                      {
+                        "link": "$item.asset.M.link.S",
+                        "width": $item.asset.M.width.N,
+                        "height": $item.asset.M.height.N
+                      }
+                    #else
+                      null
+                    #end,
+                    "thumbnail": #if($item.thumbnail != "")
+                      {
+                        "link": "$item.thumbnail.M.link.S",
+                        "width": $item.thumbnail.M.width.N,
+                        "height": $item.thumbnail.M.height.N
+                      }
+                    #else
+                      null
+                    #end,
+                    "instructions": #if($item.instructions && $item.instructions.S) "$item.instructions.S" #else null #end
+                  }#if($foreach.hasNext),#end
+                #end
+                ]
                 }
       MethodResponses:
         - StatusCode: 200

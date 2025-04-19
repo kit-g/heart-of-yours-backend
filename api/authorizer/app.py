@@ -5,7 +5,7 @@ from typing import Literal
 
 import firebase_admin
 from firebase_admin import auth, credentials
-from firebase_admin.auth import ExpiredIdTokenError
+from firebase_admin.auth import ExpiredIdTokenError, UserNotFoundError
 
 cred = credentials.Certificate("firebase.json")
 firebase_admin.initialize_app(cred)
@@ -25,7 +25,7 @@ class User:
     def from_dict(cls, d: dict) -> 'User':
         return cls(
             id=d['uid'],
-            name=d['name'],
+            name=d.get('name'),
             email=d['email'],
             verified=d['email_verified'],
         )
@@ -93,3 +93,12 @@ def handler(event, _):
                     except Exception as e:
                         print(f"Token verification failed: {e}")
                         return generate_policy("Deny", resource)
+        case {
+            'Event': 'AccountDeletion',
+            'Payload': {'user_id': user_id},
+        }:
+            try:
+                auth.delete_user(user_id)
+            except UserNotFoundError:
+                pass
+            return {'message': f'Account {user_id} deleted from Firebase'}
