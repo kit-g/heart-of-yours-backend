@@ -512,6 +512,8 @@ Resources:
           MEDIA_BUCKET: !FindInMap [ Env, !Ref Env, MediaBucket ]
           WORKOUTS_TABLE: !Ref WorkoutsDatabase
       FunctionName: "heart-background"
+      Layers:
+        - arn:aws:lambda:ca-central-1:583168578067:layer:dynamo-utils:2
       Role: !GetAtt LambdaExecutionRole.Arn
 
   BackgroundFunctionEventInvokeConfig:
