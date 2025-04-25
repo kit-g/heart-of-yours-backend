@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS exercises
     thumbnail        TEXT,
     thumbnail_width  INT,
     thumbnail_height INT,
+    instructions     TEXT,
     user_id          TEXT
 );
 
