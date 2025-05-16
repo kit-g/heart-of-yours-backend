@@ -1038,7 +1038,11 @@ Resources:
                     #else
                       null
                     #end,
-                    "instructions": #if($item.instructions && $item.instructions.S) "$item.instructions.S" #else null #end
+                    #if($item.instructions != "")
+                    "instructions": "$item.instructions.S"
+                    #else
+                    "instructions": null
+                    #end
                   }#if($foreach.hasNext),#end
                 #end
                 ]
