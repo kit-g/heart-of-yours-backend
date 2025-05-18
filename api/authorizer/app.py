@@ -102,3 +102,5 @@ def handler(event, _):
             except UserNotFoundError:
                 pass
             return {'message': f'Account {user_id} deleted from Firebase'}
+
+    raise ValueError(event)

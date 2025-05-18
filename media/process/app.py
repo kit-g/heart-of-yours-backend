@@ -9,7 +9,7 @@ MAX_SIZE = 1024
 MAX_BYTES = 1024 * 200
 
 
-def handler(event: dict, _):
+def handler(event: dict, _) -> dict:
     match event:
         case {
             'Records': [
@@ -29,7 +29,7 @@ def handler(event: dict, _):
 
             if not destination:
                 print(f'No destination tag found for {key}, skipping.')
-                return
+                return {}
 
             obj = s3.get_object(Bucket=bucket, Key=key)
             raw = obj['Body'].read()
@@ -45,7 +45,7 @@ def handler(event: dict, _):
                             ContentType=obj['ContentType'],
                         )
                         print('Uploaded without resizing')
-                        return
+                        return {}
                 except Exception as e:
                     print(f'Image check failed, defaulting to resize: {e}')
 
@@ -62,3 +62,6 @@ def handler(event: dict, _):
                     ContentType='image/jpeg',
                 )
                 print('Uploaded resized image')
+            return {}
+
+    raise ValueError(event)

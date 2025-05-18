@@ -67,6 +67,7 @@ def call_lambda(function_name: str, event: dict) -> dict | None:
     except json.JSONDecodeError as error:
         if error.pos == 0:
             return {}
+        raise
     except Exception:
         raise
 

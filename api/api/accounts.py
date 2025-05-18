@@ -108,6 +108,7 @@ def edit_account(*, user: User, account_id: str, action: str, _: dict = None) ->
             return _undo_account_deletion(user.id)
         case 'removeAvatar':
             return _remove_avatar(account_id)
+    return None
 
 
 def _undo_account_deletion(user_id: str) -> None:
