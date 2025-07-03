@@ -16,6 +16,9 @@ Parameters:
   DevMediaDistribution:
     Type: String
     Default: "d15gue09xfvm24.cloudfront.net"
+  DevAppDistribution:
+    Type: String
+    Default: "dsw54y29hvvfi.cloudfront.net"
 
 
 Resources:
@@ -72,14 +75,36 @@ Resources:
       TTL: 14400
       Type: CNAME
 
+  DevAppDistributionCertificateValidationRecord1:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      Comment: 'Dev app CF distribution'
+      HostedZoneId: !GetAtt Zone.Id
+      Name: _f05280c09b017b103351d8730a493786.dev.app.heart-of.me.
+      ResourceRecords:
+        - _255e9c88f095efa39931dcec9556a59e.xlfgrmvvlj.acm-validations.aws.
+      TTL: 14400
+      Type: CNAME
+
+  DevAppDistributionCertificateValidationRecord2:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      Comment: 'Dev app CF distribution'
+      HostedZoneId: !GetAtt Zone.Id
+      Name: _e9453692ccbd0645bd3d939805ec62bd.www.dev.app.heart-of.me.
+      ResourceRecords:
+        - _cf535b2aa56b54ec8420a83a003bd176.xlfgrmvvlj.acm-validations.aws.
+      TTL: 14400
+      Type: CNAME
+
   DevMediaDistributionRecord:
     Type: AWS::Route53::RecordSet
     Properties:
-      Comment: 'Dev media CF distribution'
+      Comment: 'Dev app CF distribution'
       HostedZoneId: !GetAtt Zone.Id
-      Name: "dev.media.heart-of.me"
+      Name: "dev.app.heart-of.me"
       ResourceRecords:
-        - !Ref DevMediaDistribution
+        - !Ref DevAppDistribution
       TTL: 14400
       Type: CNAME
 
