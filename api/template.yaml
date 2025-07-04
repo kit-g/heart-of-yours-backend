@@ -113,6 +113,7 @@ Resources:
 
   Exercise:
     Type: AWS::ApiGateway::Model
+    DependsOn: ImageDescriptor
     Properties:
       RestApiId: !Ref Api
       ContentType: application/json
@@ -162,6 +163,7 @@ Resources:
 
   ExerciseResponse:
     Type: AWS::ApiGateway::Model
+    DependsOn: Exercise
     Properties:
       RestApiId: !Ref Api
       ContentType: application/json
@@ -213,6 +215,7 @@ Resources:
             minimum: 0
 
   WorkoutExercise:
+    DependsOn: Set
     Type: AWS::ApiGateway::Model
     Properties:
       RestApiId: !Ref Api
@@ -240,6 +243,7 @@ Resources:
 
   Workout:
     Type: AWS::ApiGateway::Model
+    DependsOn: WorkoutExercise
     Properties:
       RestApiId: !Ref Api
       ContentType: application/json
@@ -268,6 +272,7 @@ Resources:
 
   Template:
     Type: AWS::ApiGateway::Model
+    DependsOn: WorkoutExercise
     Properties:
       RestApiId: !Ref Api
       ContentType: application/json
@@ -294,6 +299,7 @@ Resources:
 
   WorkoutResponse:
     Type: AWS::ApiGateway::Model
+    DependsOn: Workout
     Properties:
       RestApiId: !Ref Api
       ContentType: application/json
@@ -313,6 +319,7 @@ Resources:
 
   TemplateResponse:
     Type: AWS::ApiGateway::Model
+    DependsOn: Template
     Properties:
       RestApiId: !Ref Api
       ContentType: application/json
