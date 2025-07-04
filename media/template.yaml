@@ -193,6 +193,16 @@ Resources:
             CachedMethods:
               - GET
               - HEAD
+          - PathPattern: "/.well-known/apple-app-site-association"
+            TargetOriginId: UserMediaBucketOrigin
+            ViewerProtocolPolicy: https-only
+            CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6  # CachingOptimized
+            AllowedMethods:
+              - GET
+              - HEAD
+            CachedMethods:
+              - GET
+              - HEAD
         DefaultCacheBehavior:
           TargetOriginId: UserMediaBucketOrigin
           ViewerProtocolPolicy: redirect-to-https

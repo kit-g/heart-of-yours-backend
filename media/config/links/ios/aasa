@@ -1,0 +1,15 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "P5QLJDJ7P2.me.heart-of.ios.dev",
+        "paths": [ "*" ]
+      },
+      {
+        "appID": "P5QLJDJ7P2.me.heart.macos.dev",
+        "paths": [ "*" ]
+      }
+    ]
+  }
+}

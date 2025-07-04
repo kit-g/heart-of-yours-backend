@@ -100,6 +100,17 @@ Resources:
   DevMediaDistributionRecord:
     Type: AWS::Route53::RecordSet
     Properties:
+      Comment: 'Dev media CF distribution'
+      HostedZoneId: !GetAtt Zone.Id
+      Name: "dev.media.heart-of.me"
+      ResourceRecords:
+        - !Ref DevMediaDistribution
+      TTL: 14400
+      Type: CNAME
+
+  DevAppDistributionRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
       Comment: 'Dev app CF distribution'
       HostedZoneId: !GetAtt Zone.Id
       Name: "dev.app.heart-of.me"
