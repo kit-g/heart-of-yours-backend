@@ -119,3 +119,27 @@ Resources:
       TTL: 14400
       Type: CNAME
 
+  MxRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      Comment: 'Mail confirmation record'
+      HostedZoneId: !GetAtt Zone.Id
+      Name: "heart-of.me"
+      ResourceRecords:
+        - "10 mx1.improvmx.com"
+        - "20 mx2.improvmx.com"
+      TTL: 14400
+      Type: MX
+
+  TxtRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      Comment: "TXT record"
+      HostedZoneId: !GetAtt Zone.Id
+      Name: "heart-of.me"
+      ResourceRecords:
+        - "\"v=spf1 include:spf.improvmx.com ~all\""
+      TTL: 14400
+      Type: TXT
+
+
